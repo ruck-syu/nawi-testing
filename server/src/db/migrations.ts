@@ -1,0 +1,155 @@
+/**
+ * Boot-time migrations for databases created before the current schema.
+ *
+ * `applySchema` runs `schema.sql` with `IF NOT EXISTS`, so it never alters a table
+ * that already exists. Anything that changes an existing object — a widened CHECK,
+ * a new column — goes here as an idempotent block that is safe to run on every boot
+ * against the shared live database.
+ */
+
+import { getSql } from './index.ts';
+
+/**
+ * Widen `generated_report.format` to accept `docx`.
+ *
+ * Pre-docx databases carry an auto-named inline CHECK (`format IN ('html','pdf')`);
+ * the current schema names it `chk_generated_report_format` with docx included.
+ * This block drops any format CHECK that does not know docx yet, then ensures the
+ * named constraint exists. Re-running is a no-op: the surviving constraint mentions
+ * docx and already has the canonical name.
+ */
+async function migrateReportFormat(): Promise<void> {
+  await getSql().unsafe(`
+    DO $$
+    DECLARE
+      r record;
+    BEGIN
+      FOR r IN
+        SELECT c.conname AS name
+          FROM pg_constraint c
+          JOIN pg_class t ON t.oid = c.conrelid
+         WHERE t.relname = 'generated_report'
+           AND c.contype = 'c'
+           AND pg_get_constraintdef(c.oid) ILIKE '%format%'
+           AND pg_get_constraintdef(c.oid) NOT ILIKE '%docx%'
+      LOOP
+        EXECUTE format('ALTER TABLE generated_report DROP CONSTRAINT %I', r.name);
+      END LOOP;
+      IF NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint c
+          JOIN pg_class t ON t.oid = c.conrelid
+         WHERE t.relname = 'generated_report'
+           AND c.conname = 'chk_generated_report_format'
+      ) THEN
+        ALTER TABLE generated_report
+          ADD CONSTRAINT chk_generated_report_format CHECK (format IN ('html','pdf','docx'));
+      END IF;
+    END $$;
+  `);
+}
+
+export async function applyMigrations(): Promise<void> {
+  await migrateReportFormat();
+  await migrateUserProfile();
+  await migrateReportPrintSignature();
+  await migrateObservationDeltaL();
+  await migrateObservationRadiated();
+  await migrateRunPressure();
+  await migrateStandardOimlOnly();
+  await migrateSignatureUserLink();
+}
+
+/**
+ * Profile columns on `"user"`: a standing signature image and an active flag.
+ *
+ * Fresh databases get both from `schema.sql`; this block backfills databases
+ * created before the profile page existed. `IF NOT EXISTS` makes re-running
+ * a no-op on either generation.
+ */
+async function migrateUserProfile(): Promise<void> {
+  await getSql().unsafe(`
+    ALTER TABLE "user" ADD COLUMN IF NOT EXISTS signature_path TEXT;
+    ALTER TABLE "user" ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+  `);
+}
+
+/**
+ * Per-generation signature flag on `generated_report`. Older rows predate the
+ * print-signature checkbox and always printed the block, so the backfill default
+ * is TRUE — history reads exactly as it rendered.
+ */
+async function migrateReportPrintSignature(): Promise<void> {
+  await getSql().unsafe(`
+    ALTER TABLE generated_report
+      ADD COLUMN IF NOT EXISTS print_signature BOOLEAN NOT NULL DEFAULT TRUE;
+  `);
+}
+
+/**
+ * Changeover weights on `observation`. Old rows predate the column and read as
+ * direct-reading (ΔL treated as zero by the rules), so no backfill is needed.
+ */
+async function migrateObservationDeltaL(): Promise<void> {
+  await getSql().unsafe(`
+    ALTER TABLE observation ADD COLUMN IF NOT EXISTS delta_l_up REAL;
+    ALTER TABLE observation ADD COLUMN IF NOT EXISTS delta_l_down REAL;
+  `);
+}
+
+/**
+ * Radiated-immunity sweep columns on `observation`. Absent on old rows; the
+ * radiated rule treats missing points as unentered, never as zero exposure.
+ */
+async function migrateObservationRadiated(): Promise<void> {
+  await getSql().unsafe(`
+    ALTER TABLE observation ADD COLUMN IF NOT EXISTS frequency_mhz REAL;
+    ALTER TABLE observation ADD COLUMN IF NOT EXISTS field_strength_v_m REAL;
+  `);
+}
+
+/**
+ * Barometric pressure on `test_run`. Absent on old runs; the envelope check
+ * treats a missing reading as unrecorded, never as zero.
+ */
+async function migrateRunPressure(): Promise<void> {
+  await getSql().unsafe(`
+    ALTER TABLE test_run ADD COLUMN IF NOT EXISTS barometric_hpa REAL;
+  `);
+}
+
+/**
+ * OIML-only standards: the EN45501 variants are retired. Master rows carrying
+ * the old three-element list collapse to OIML alone, and any project still
+ * versioned EN45501 moves with them — otherwise those projects would match no
+ * tests, no checklist clauses, and no MPE table at all.
+ */
+async function migrateStandardOimlOnly(): Promise<void> {
+  await getSql().unsafe(`
+    UPDATE test_type
+       SET applicable_standards = '["OIML R76-1:2006"]'
+     WHERE applicable_standards::text LIKE '%EN45501%';
+    UPDATE checklist_item
+       SET applicable_standards = '["OIML R76-1:2006"]'
+     WHERE applicable_standards::text LIKE '%EN45501%';
+    UPDATE project
+       SET standard_version = 'OIML R76-1:2006'
+     WHERE standard_version LIKE 'EN45501%';
+  `);
+}
+
+/**
+ * Link historical signature rows to user accounts by name. New signatures store
+ * the user id directly (see the sign route); this one-time backfill covers rows
+ * signed before the link existed. Unmatched rows keep their recorded values.
+ */
+async function migrateSignatureUserLink(): Promise<void> {
+  await getSql().unsafe(`
+    ALTER TABLE signature ADD COLUMN IF NOT EXISTS signed_by_user_id INTEGER
+      REFERENCES "user"(id) ON DELETE SET NULL;
+    UPDATE signature s
+       SET signed_by_user_id = u.id
+      FROM "user" u
+     WHERE s.signed_by_user_id IS NULL AND u.name = s.signed_by_name;
+  `);
+}

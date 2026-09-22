@@ -1,0 +1,30 @@
+{
+  // Type checking only. Node runs the .ts files directly by stripping types, so nothing here
+  // ever emits JavaScript — `noEmit` is what makes that explicit rather than accidental.
+  //
+  // `allowImportingTsExtensions` is required because Node's type stripping does no module
+  // resolution: an import must name the file that is actually on disk, so every relative
+  // specifier in this project ends in `.ts`. TypeScript rejects that by default.
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": false,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
+  },
+  "include": ["packages/*/src/**/*.ts", "packages/*/tests/**/*.ts", "server/src/**/*.ts"],
+  "exclude": ["node_modules", "client/vendor"]
+}

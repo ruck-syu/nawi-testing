@@ -1,0 +1,17 @@
+{
+  "name": "@r76/server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "API server: node:http + Supabase PostgreSQL",
+  "scripts": {
+    "dev": "node --watch src/index.ts",
+    "start": "node src/index.ts",
+    "seed": "node src/db/seed.ts",
+    "seed:reset": "node src/db/seed.ts --reset"
+  },
+  "dependencies": {},
+  "optionalDependencies": {
+    "puppeteer": "^23.0.0"
+  }
+}

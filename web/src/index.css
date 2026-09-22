@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+/*
+ * Industrial theme for the Legal Metrology R76 system.
+ *
+ * Tokens follow the shadcn convention (background/foreground/primary/muted/border
+ * semantic colors) so shadcn-style components drop in unchanged. Values aim for a
+ * plant-floor instrument console: dark steel masthead, safety-amber accents, concrete
+ * grey background, squared corners, tabular numerals on every measured number.
+ */
+@theme {
+  --font-sans: "Helvetica Neue", Helvetica, "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+
+  --color-background: #e7e9ec;
+  --color-foreground: #1b2027;
+  --color-card: #ffffff;
+  --color-card-foreground: #1b2027;
+  --color-muted: #dfe2e6;
+  --color-muted-foreground: #5b6470;
+  --color-border: #c3c8cf;
+  --color-input: #ffffff;
+  --color-ring: #b45309;
+
+  --color-primary: #232a34;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #d3d7dc;
+  --color-secondary-foreground: #1b2027;
+  --color-accent: #d97706;
+  --color-accent-foreground: #1b2027;
+  --color-destructive: #b3261e;
+  --color-destructive-foreground: #ffffff;
+
+  --color-steel-950: #14181e;
+  --color-steel-900: #1c2129;
+  --color-steel-800: #232a34;
+  --color-steel-700: #2f3742;
+
+  --color-amber-glow: #f59e0b;
+
+  --color-verify: #0f7a5a;
+  --color-verify-wash: #e3f3ec;
+  --color-reject: #b3261e;
+  --color-reject-wash: #fbe9e7;
+  --color-pending: #8a6d00;
+  --color-pending-wash: #faf3d7;
+
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  /* Tabular figures wherever measured numbers appear — a metrology requirement. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+  /* Amber rule used under the masthead and above console cards. */
+  .amber-rule {
+    background: var(--color-amber-glow);
+  }
+}
