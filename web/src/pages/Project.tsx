@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, ApiError } from "../lib/api";
+import { api, ApiError, fileUrl } from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -80,7 +80,7 @@ export function Project() {
         url?: string;
         message?: string;
       };
-      const url = res.report?.url ?? res.url;
+      const url = fileUrl(res.report?.url ?? res.url);
       setNotice(res.message ?? "Report generated.");
       if (url) window.open(url, "_blank", "noopener");
     } catch (err) {

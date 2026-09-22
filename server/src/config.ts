@@ -16,8 +16,8 @@ export const SERVER_ROOT = path.resolve(here, '..');
 
 export const config = {
   port: Number(process.env.PORT ?? 4000),
-  // 0.0.0.0 by default: hosts like Render only detect ports bound on all
-  // interfaces. Local dev is unaffected — localhost still reaches it.
+  // 0.0.0.0 by default so hosted environments can reach the port.
+  // Local dev is unaffected — localhost still reaches it.
   host: process.env.HOST ?? '0.0.0.0',
 
   uploadsDir: process.env.UPLOADS_DIR ?? path.join(SERVER_ROOT, 'uploads'),
@@ -34,7 +34,7 @@ export const config = {
   /** Max upload size for attachment photos. */
   maxUploadBytes: Number(process.env.MAX_UPLOAD_BYTES ?? 8 * 1024 * 1024),
 
-  /** Vite dev server origin, allowed through CORS. */
+  /** Allowed UI origins for CORS; comma-separated when the UI has several homes. */
   clientOrigin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173',
 
   /**

@@ -57,6 +57,21 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
+/**
+ * Backend origin. Empty when UI and API share an origin (local `npm start`,
+ * or Vite dev via its proxy); set VITE_API_BASE to the API URL when the UI
+ * is hosted separately (e.g. on Vercel).
+ */
+export const apiBase =
+  (import.meta as any).env?.VITE_API_BASE?.replace(/\/$/, "") ?? "";
+
+/** Resolve a backend file path (/reports/…, /uploads/…) against the API origin. */
+export function fileUrl(path: string | null | undefined): string {
+  if (!path) return "";
+  if (/^https?:\/\//.test(path)) return path;
+  return `${apiBase}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 async function request(method: string, path: string, { body, form, signal }: RequestOptions = {}) {
   const headers: Record<string, string> = {};
   const token = session.token;
@@ -72,7 +87,7 @@ async function request(method: string, path: string, { body, form, signal }: Req
 
   let response: Response;
   try {
-    response = await fetch(`/api${path}`, { method, headers, body: payload, signal });
+    response = await fetch(`${apiBase}/api${path}`, { method, headers, body: payload, signal });
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") throw error;
     throw new ApiError(0, "Cannot reach the server. Check that it is still running.", null);

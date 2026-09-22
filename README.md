@@ -61,6 +61,17 @@ Open http://127.0.0.1:4000 and sign in:
 
 For frontend development with hot reload: `npx vite` inside `web/` (port 5173, proxies `/api` to the backend on 4000).
 
+## Host the UI on Vercel
+
+The repo ships a `vercel.json`: import the repo, Vercel builds `web/` and serves it
+statically (SPA fallback included). The API stays wherever you run the server; point the
+UI at it with one variable:
+
+- Vercel project setting → Environment Variables: `VITE_API_BASE=https://your-api-host`
+  (no trailing slash; leave it unset when UI and API share an origin).
+- On the API host, allow the Vercel origin through CORS:
+  `CLIENT_ORIGIN=https://your-app.vercel.app` (comma-separated if several UIs call one API).
+
 ## 3-minute demo script
 
 1. **Dashboard** — a seeded examination is ready: task **A530947** (Taiwan Scale NHB150,
@@ -89,7 +100,6 @@ server/src/        REST API, report renderer (HTML/PDF/DOCX), seed script, auth
 web/src/           React app: pages, test forms, charts, filters
 scripts/           test runner + end-to-end verification harness
 docs/              OIML R76 background research summary
-render.yaml        Render deployment blueprint (set DATABASE_URL on deploy)
 ```
 
 Runtime state (database, uploaded photos, generated reports) lives outside the repo and is

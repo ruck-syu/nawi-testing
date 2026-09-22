@@ -243,8 +243,19 @@ export function serveStatic(res: http.ServerResponse, rootDir: string, relative:
 // Server
 // ---------------------------------------------------------------------------
 
-function applyCors(res: http.ServerResponse): void {
-  res.setHeader('Access-Control-Allow-Origin', config.clientOrigin);
+function applyCors(req: http.IncomingMessage, res: http.ServerResponse): void {
+  // CLIENT_ORIGIN may list several origins (comma-separated) so one API can
+  // serve local dev, a preview URL and the hosted UI. The request's own Origin
+  // is reflected only when listed; otherwise the first entry is the default.
+  const allowed = config.clientOrigin
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  const origin = String(req.headers.origin ?? '');
+  res.setHeader(
+    'Access-Control-Allow-Origin',
+    allowed.includes(origin) ? origin : (allowed[0] ?? ''),
+  );
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Vary', 'Origin');
@@ -267,7 +278,7 @@ export interface ServerOptions {
 
 export function createServer({ router, staticHandlers = [] }: ServerOptions): http.Server {
   return http.createServer(async (req, res) => {
-    applyCors(res);
+    applyCors(req, res);
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204);

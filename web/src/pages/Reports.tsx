@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { SearchX, TriangleAlert } from "lucide-react";
-import { api, ApiError } from "../lib/api";
+import { api, ApiError, fileUrl } from "../lib/api";
 import { DateFilters, dateKey, inDateRange, type DateSort } from "../components/DateFilters";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
@@ -133,7 +133,7 @@ export function Reports() {
       const report = (data.report ?? data) as Report;
       setNotice(data.message ?? "Report generated.");
       const project = projects.find((p: any) => String(p.id) === String(generateFor));
-      const url = report.url ?? `/reports/${report.file_path}`;
+      const url = fileUrl(report.url ?? (report.file_path ? `/reports/${report.file_path}` : null));
       setReports((prev) => [
         {
           ...report,
@@ -313,7 +313,7 @@ export function Reports() {
                     <div className="flex gap-2">
                       {r.url ? (
                         <a
-                          href={r.url}
+                          href={fileUrl(r.url)}
                           target="_blank"
                           rel="noopener"
                           title={
@@ -334,7 +334,7 @@ export function Reports() {
                           variant="ghost"
                           size="sm"
                           title="Opens the report and the browser print dialogue, which can save it as a PDF."
-                          onClick={() => printReport(r.url as string)}
+                          onClick={() => printReport(fileUrl(r.url as string))}
                         >
                           Print / PDF
                         </Button>

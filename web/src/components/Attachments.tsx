@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, ApiError } from "../lib/api";
+import { api, ApiError, fileUrl } from "../lib/api";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
@@ -90,10 +90,10 @@ export function Attachments({
           <ul className="grid gap-3 sm:grid-cols-2">
             {items.map((a) => (
               <li key={a.id} className="overflow-hidden rounded-md border">
-                <a href={a.url ?? `/uploads/${a.file_path}`} target="_blank" rel="noopener">
+                <a href={fileUrl(a.url ?? (a.file_path ? `/uploads/${a.file_path}` : null))} target="_blank" rel="noopener">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={a.url ?? `/uploads/${a.file_path}`}
+                    src={fileUrl(a.url ?? (a.file_path ? `/uploads/${a.file_path}` : null))}
                     alt={a.caption ?? a.original_name ?? "Test photograph"}
                     className="aspect-video w-full object-cover"
                     loading="lazy"

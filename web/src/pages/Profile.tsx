@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { TriangleAlert } from "lucide-react";
-import { api, ApiError, session } from "../lib/api";
+import { api, ApiError, fileUrl, session } from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
@@ -176,7 +176,7 @@ export function Profile() {
             {me?.signature_url ? (
               <div className="flex items-center gap-4">
                 <img
-                  src={me.signature_url}
+                  src={fileUrl(me.signature_url)}
                   alt="Your uploaded signature"
                   className="max-h-20 max-w-56 border bg-white px-2 py-1"
                 />
