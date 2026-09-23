@@ -5,13 +5,13 @@
 #   DATABASE_URL   Supabase pooler URL (port 6543, transaction mode)
 #   JWT_SECRET     any long random string (else sessions reset on every restart)
 # No CLIENT_ORIGIN / VITE_API_BASE needed: the server serves the built UI itself,
-# so UI and API share one origin. The Chrome download is skipped to keep builds
-# fast and deterministic; PDF requests fall back to print-styled HTML with
-# browser Save-as-PDF instructions (the app says so when it happens).
+# so UI and API share one origin. No browser binary is installed; PDF requests
+# fall back to print-styled HTML with browser Save-as-PDF instructions
+# (the app says so when it happens).
 
 [build]
 builder = "NIXPACKS"
-buildCommand = "PUPPETEER_SKIP_DOWNLOAD=1 npm ci && cd web && npx vite build"
+buildCommand = "npm ci && cd web && npx vite build"
 
 [deploy]
 startCommand = "npm start"

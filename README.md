@@ -25,7 +25,8 @@ readings are the only thing anyone can edit.
   stability, equilibrium, zero creep, tare, tilting, warm-up, voltage variation, damping,
   discrimination — with live error curves and MPE envelopes.
 - **Pattern conformity checklist** — EN 45501 clauses with pass/fail/NA and remarks.
-- **Report repository** — every generation kept (PDF/DOCX/HTML), downloadable, printable,
+- **Report repository** — every generation kept (HTML/DOCX, plus PDF when a Chrome
+  renderer is installed; otherwise print-ready HTML), downloadable, printable,
   with verdict and generation history per examination.
 - **Test history** — chronological log of all runs with filters, plus a simulated
   proof-of-history anchoring demo (hash chain per page).
@@ -76,9 +77,9 @@ and redeploy:
 2. `JWT_SECRET` — any long random string. Without it, sessions reset on every restart.
 
 No CORS or API-base configuration needed: the server builds and serves the client
-itself, so UI and API share one origin. The build skips the headless-Chrome download
-to stay fast and deterministic — PDF requests fall back to print-styled HTML with
-browser Save-as-PDF instructions (the app says so when it happens).
+itself, so UI and API share one origin. No browser engine is installed, so PDF
+requests fall back to print-styled HTML with browser Save-as-PDF instructions
+(the app says so when it happens).
 
 If sign-in fails, the login screen names the API origin it tried and gives up after
 15 s instead of loading forever. Chain check from any machine:

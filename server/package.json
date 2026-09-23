@@ -10,8 +10,5 @@
     "seed": "node src/db/seed.ts",
     "seed:reset": "node src/db/seed.ts --reset"
   },
-  "dependencies": {},
-  "optionalDependencies": {
-    "puppeteer": "^23.0.0"
-  }
+  "dependencies": {}
 }
