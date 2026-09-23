@@ -267,7 +267,7 @@ async function seedDemoProject() {
       STANDARD,
       '2011-01-03',
       '2011-02-24',
-      'completed',
+      'draft',
       admin?.id ?? null,
     ],
   );

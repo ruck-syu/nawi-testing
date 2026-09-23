@@ -17,21 +17,21 @@ import {
 import {
   badRequest,
   dateOrNull,
+  forbidden,
   notFound,
   num,
   numOrNull,
   oneOf,
   str,
   strOrNull,
-  type Ctx,
   type Router,
 } from '../http.ts';
 import { computeN, generateReferenceWeights, validateInstrumentSpecInput, type AccuracyClass } from '../domain.ts';
 import { projectRollup, toInstrumentSpec, getModel, type ModelRow } from './../services/evaluation.ts';
+import { requireProjectStage, requireTechnicianEditableProject } from '../services/review.ts';
 
 const ACCURACY_CLASSES = ['I', 'II', 'III', 'IIII'] as const;
 const PAN_SHAPES = ['rectangular_4corner', 'triangular_3point'] as const;
-const PROJECT_STATUSES = ['draft', 'in_progress', 'completed', 'approved'] as const;
 
 interface ProjectRow {
   id: number;
@@ -350,8 +350,6 @@ export function registerProjectRoutes(router: Router): void {
       if (startDate && endDate && startDate > endDate) {
         throw badRequest('examination_start_date must be on or before examination_end_date');
       }
-      const status = oneOf(body.status, PROJECT_STATUSES, 'status', 'draft');
-
       if (!Array.isArray(body.models) || body.models.length === 0) {
         throw badRequest('At least one instrument model is required');
       }
@@ -372,7 +370,7 @@ export function registerProjectRoutes(router: Router): void {
             standardVersion,
             startDate,
             endDate,
-            status,
+            'draft',
             ctx.user?.sub ?? null,
           ],
         );
@@ -515,7 +513,7 @@ export function registerProjectRoutes(router: Router): void {
     '/api/projects/:id',
     async (ctx) => {
       const projectId = Number(ctx.params.id);
-      await requireProject(projectId);
+      await requireTechnicianEditableProject(projectId, ctx);
 
       const requiredFields = ['task_no', 'report_no', 'standard_version'] as const;
 
@@ -544,28 +542,7 @@ export function registerProjectRoutes(router: Router): void {
         values.push(d);
       }
       if ('status' in ctx.body) {
-        const next = oneOf(ctx.body.status, PROJECT_STATUSES, 'status');
-        if (next === 'completed' || next === 'approved') {
-          // A project with unfinished sheets cannot be called done: that split
-          // is exactly what reads as a status/verdict contradiction on screen.
-          // Failed tests are fine — a failed examination is still a complete one.
-          // Only enrolled sheets block: an implemented test with no run yet is
-          // out of scope until opened (mirrors the rollup's own relevant set),
-          // which also keeps form-less tests like EQUIL from blocking forever.
-          const rollup = await projectRollup(projectId);
-          if (rollup.incompleteCount > 0) {
-            const pending = rollup.models.flatMap((m) =>
-              m.summary
-                .filter((e) => e.implemented && e.testRunId !== null && e.verdict !== 'pass' && e.verdict !== 'fail')
-                .map((e) => e.testTypeCode),
-            );
-            throw badRequest(
-              `Cannot mark ${next} with unfinished tests: ${[...new Set(pending)].join(', ') || 'pending sheets'}.`,
-            );
-          }
-        }
-        updates.push('status = ?');
-        values.push(next);
+        throw badRequest('Use the review actions to change the report stage.');
       }
       if (updates.length === 0) throw badRequest('No updatable fields supplied');
 
@@ -577,6 +554,54 @@ export function registerProjectRoutes(router: Router): void {
     },
     [],
   );
+
+  router.patch('/api/projects/:id/review', async (ctx) => {
+    const projectId = Number(ctx.params.id);
+    const action = oneOf(ctx.body.action, ['mark_reviewed', 'approve'] as const, 'action');
+    const project = await requireProjectStage(projectId);
+
+    if (action === 'mark_reviewed') {
+      if (ctx.user?.role !== 'technician') throw forbidden('Only technicians may mark reports as reviewed.');
+      if (project.status === 'approved') throw badRequest('Approved reports cannot be marked as reviewed.');
+      await run(
+        `UPDATE project
+            SET status = 'reviewed', reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?`,
+        [ctx.user.sub, projectId],
+      );
+      return { project: await requireProject(projectId) };
+    }
+
+    if (ctx.user?.role !== 'admin') throw forbidden('Only administrators may review reports.');
+    const adminId = ctx.user.sub;
+    if (project.status === 'approved') throw badRequest('This report is already approved.');
+
+    const signer = await get<{ name: string; signature_path: string | null }>(
+      'SELECT name, signature_path FROM "user" WHERE id = ?',
+      [adminId],
+    );
+    if (!signer?.signature_path) {
+      throw badRequest('Upload your administrator signature in Profile before approving a report.');
+    }
+
+    return await transaction(async () => {
+      await run(
+        `UPDATE project
+            SET status = 'approved', approved_by = ?, approved_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?`,
+        [adminId, projectId],
+      );
+      await run(
+        `INSERT INTO signature
+           (project_id, signed_by_name, signed_by_title, signature_image_path, signed_by_user_id)
+         VALUES (?, ?, ?, ?, ?)`,
+        [projectId, signer.name, 'Responsible for the examination', signer.signature_path, adminId],
+      );
+      return { project: await requireProject(projectId) };
+    });
+  }, []);
 
   router.delete(
     '/api/projects/:id',
@@ -626,7 +651,7 @@ export function registerProjectRoutes(router: Router): void {
     '/api/projects/:id/models',
     async (ctx) => {
       const projectId = Number(ctx.params.id);
-      await requireProject(projectId);
+      await requireTechnicianEditableProject(projectId, ctx);
 
       const familyId = numOrNull(ctx.body.family_id);
       const family = familyId
@@ -666,7 +691,12 @@ export function registerProjectRoutes(router: Router): void {
     '/api/models/:id',
     async (ctx) => {
       const modelId = Number(ctx.params.id);
-      await getModel(modelId);
+      const model = await getModel(modelId);
+      const project = await get<{ project_id: number }>(
+        'SELECT f.project_id FROM instrument_family f WHERE f.id = ?', [model.family_id],
+      );
+      if (!project) throw notFound(`Project for model ${modelId} not found`);
+      await requireTechnicianEditableProject(project.project_id, ctx);
       const fields = readModelFields(ctx.body);
       await run(
         `UPDATE instrument_model SET ${Object.keys(fields).map((c) => `${c} = ?`).join(', ')}
@@ -682,7 +712,12 @@ export function registerProjectRoutes(router: Router): void {
     '/api/models/:id/reference-weights',
     async (ctx) => {
       const modelId = Number(ctx.params.id);
-      await getModel(modelId);
+      const model = await getModel(modelId);
+      const project = await get<{ project_id: number }>(
+        'SELECT f.project_id FROM instrument_family f WHERE f.id = ?', [model.family_id],
+      );
+      if (!project) throw notFound(`Project for model ${modelId} not found`);
+      await requireTechnicianEditableProject(project.project_id, ctx);
       const weights = readWeightList(ctx.body.referenceWeights);
       return await transaction(async () => {
         await replaceReferenceWeights(modelId, weights);
@@ -780,7 +815,7 @@ export function registerProjectRoutes(router: Router): void {
     '/api/projects/:id/checklist',
     async (ctx) => {
       const projectId = Number(ctx.params.id);
-      await requireProject(projectId);
+      await requireTechnicianEditableProject(projectId, ctx);
 
       const results = Array.isArray(ctx.body.results) ? ctx.body.results : [];
       if (results.length === 0) throw badRequest('results must be a non-empty array');
@@ -829,39 +864,4 @@ export function registerProjectRoutes(router: Router): void {
     [],
   );
 
-  // -------------------------------------------------------------------------
-  // Signature
-  // -------------------------------------------------------------------------
-
-  router.post(
-    '/api/projects/:id/signature',
-    async (ctx) => {
-      const projectId = Number(ctx.params.id);
-      await requireProject(projectId);
-      // The signer defaults to whoever is signed in: name from the session, title
-      // only when given, and whatever signature image their profile holds — so a
-      // stored profile signature lands on the report with no extra upload step.
-      const signer = ctx.user
-        ? await get<{ name: string; signature_path: string | null }>(
-            'SELECT name, signature_path FROM "user" WHERE id = ?',
-            [ctx.user.sub],
-          )
-        : null;
-      const nameRaw = strOrNull(ctx.body.signed_by_name)?.trim();
-      const { lastInsertRowid } = await run(
-        `INSERT INTO signature (project_id, signed_by_name, signed_by_title, signature_image_path, signed_by_user_id)
-         VALUES (?, ?, ?, ?, ?)`,
-        [
-          projectId,
-          nameRaw || signer?.name || 'Unknown signatory',
-          strOrNull(ctx.body.signed_by_title),
-          signer?.signature_path ?? null,
-          ctx.user?.sub ?? null,
-        ],
-      );
-      await touchProject(projectId);
-      return { signature: await get('SELECT * FROM signature WHERE id = ?', [lastInsertRowid]) };
-    },
-    [],
-  );
 }

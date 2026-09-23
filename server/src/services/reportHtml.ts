@@ -1131,7 +1131,6 @@ function signatureSheet(
   signature: SignatureModel | null,
   page: number,
   pages: number,
-  printSignature = true,
 ): string {
   return `<section class="sheet">
     ${docMeta(ctx, 'Conclusion', page, pages)}
@@ -1169,7 +1168,7 @@ function signatureSheet(
 
     ${`<div class="sig">
       <div>
-        <div class="sigimg">${printSignature ? signatureImage(signature?.signature_image_path) : ''}</div>
+        <div class="sigimg">${signatureImage(signature?.signature_image_path)}</div>
         <div class="line"></div>
         <p class="small"><strong>${esc(signature?.signed_by_name ?? '')}</strong><br>
           ${esc(signature?.signed_by_title ?? 'Responsible for the examination')}<br>
@@ -1223,8 +1222,7 @@ export class HtmlRenderer implements IReportRenderer<string> {
     if (model.checklist.length > 0) {
       sheets.push((page, pages) => checklistSheet(ctx, model.checklist, page, pages));
     }
-    const printSignature = options.printSignature ?? true;
-    sheets.push((page, pages) => signatureSheet(ctx, rollup, model.signature, page, pages, printSignature));
+    sheets.push((page, pages) => signatureSheet(ctx, rollup, model.signature, page, pages));
 
     const pages = sheets.length;
     const body = sheets.map((sheet, i) => sheet(i + 1, pages)).join('\n');

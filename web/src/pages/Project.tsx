@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, ApiError, fileUrl } from "../lib/api";
+import { api, ApiError, fileUrl, session } from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -25,11 +25,15 @@ function verdictVariant(v: Verdict) {
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "Draft",
-  in_progress: "In progress",
-  completed: "Completed",
+  reviewed: "Reviewed",
   approved: "Approved",
-  signed: "Signed",
 };
+
+function stageVariant(status: string) {
+  if (status === "approved") return "pass" as const;
+  if (status === "reviewed") return "incomplete" as const;
+  return "info" as const;
+}
 
 function Kv({ rows }: { rows: Array<[string, React.ReactNode]> }) {
   return (
@@ -50,32 +54,52 @@ export function Project() {
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [genFormat, setGenFormat] = useState("pdf");
-  const [printSignature, setPrintSignature] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState(false);
 
-  useEffect(() => {
-    let live = true;
-    Promise.all([
+  async function reload() {
+    const [detail, summary, checklist] = await Promise.all([
       api.get(`/projects/${id}`),
       api.get(`/projects/${id}/summary`),
       api.get(`/projects/${id}/checklist`).catch(() => null),
-    ])
-      .then(([detail, summary, checklist]) => {
-        if (live) setData({ detail, summary, checklist });
-      })
+    ]);
+    setData({ detail, summary, checklist });
+  }
+
+  useEffect(() => {
+    let live = true;
+    reload()
+      .then(() => undefined)
       .catch((err) => {
         if (live) setError(err instanceof ApiError ? err.message : "Could not load the examination.");
       });
     return () => {
       live = false;
     };
-  }, [id]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function review(action: "mark_reviewed" | "approve") {
+    setReviewing(true);
+    try {
+      await api.patch(`/projects/${id}/review`, { action });
+      setNotice(
+        action === "approve"
+          ? "Report approved and signed."
+          : "Report marked as reviewed.",
+      );
+      await reload();
+    } catch (err) {
+      setNotice(err instanceof ApiError ? err.message : "Could not update the report stage.");
+    } finally {
+      setReviewing(false);
+    }
+  }
 
   async function generate() {
     setGenerating(true);
     setNotice("Generating the report…");
     try {
-      const res = (await api.post(`/projects/${id}/reports`, { format: genFormat, print_signature: printSignature })) as {
+      const res = (await api.post(`/projects/${id}/reports`, { format: genFormat })) as {
         report?: { url?: string };
         url?: string;
         message?: string;
@@ -95,6 +119,9 @@ export function Project() {
 
   const { detail, summary, checklist } = data;
   const { project, manufacturer, families, signature, rollup } = detail;
+  const isAdmin = session.user?.role === "admin";
+  const isTechnician = session.user?.role === "technician";
+  const approved = project.status === "approved";
   const models = (families ?? []).flatMap((f: any) =>
     (f.models ?? []).map((m: any) => ({ ...m, familyName: f.family_name }))
   );
@@ -122,21 +149,23 @@ export function Project() {
           {project.task_no || `Project ${project.id}`}
         </h1>
         <Badge variant={verdictVariant(rollup.verdict)}>{rollup.verdict}</Badge>
+        <Badge variant={stageVariant(project.status)}>{STATUS_LABEL[project.status] ?? project.status}</Badge>
         <div className="ml-auto flex gap-2">
           <Link to={`/projects/${id}/checklist`}>
             <Button variant="outline" size="sm">
               Checklist
             </Button>
           </Link>
-          <label className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-input px-2 text-sm shadow-xs">
-            <input
-              type="checkbox"
-              checked={printSignature}
-              onChange={(e) => setPrintSignature(e.target.checked)}
-              aria-label="Print signature on report"
-            />
-            Signature
-          </label>
+          {isAdmin && !approved && (
+            <Button variant="accent" size="sm" onClick={() => void review("approve")} disabled={reviewing}>
+              Approve &amp; sign
+            </Button>
+          )}
+          {isTechnician && !approved && (
+            <Button variant="outline" size="sm" onClick={() => void review("mark_reviewed")} disabled={reviewing}>
+              Mark as Reviewed
+            </Button>
+          )}
           <select
             aria-label="Report format"
             value={genFormat}
@@ -294,9 +323,9 @@ export function Project() {
                           <Badge variant={verdictVariant(t.verdict)}>{t.verdict}</Badge>
                         </TableCell>
                         <TableCell>
-                          <Link
-                            to={`/models/${model.id}/tests/${t.testTypeCode}`}
-                            className="font-semibold text-primary hover:underline"
+                    <Link
+                      to={`/models/${model.id}/tests/${t.testTypeCode}`}
+                      className={cn("font-semibold text-primary hover:underline", approved && "pointer-events-none opacity-60")}
                           >
                             {t.displayName ?? t.testTypeCode}
                           </Link>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { SearchX, TriangleAlert } from "lucide-react";
-import { api, ApiError } from "../lib/api";
+import { api, ApiError, session } from "../lib/api";
 import { DateFilters, dateKey, inDateRange, type DateSort } from "../components/DateFilters";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
@@ -26,6 +26,7 @@ interface Project {
   modelNames?: string[];
   status: string;
   verdict?: string;
+  testCount?: number;
   passCount?: number;
   failCount?: number;
   incompleteCount?: number;
@@ -34,10 +35,8 @@ interface Project {
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "Draft",
-  in_progress: "In progress",
-  completed: "Completed",
+  reviewed: "Reviewed",
   approved: "Approved",
-  signed: "Signed",
 };
 
 function verdictVariant(v: string | undefined) {
@@ -98,6 +97,25 @@ export function Dashboard() {
     });
   }, [projects, query, status, verdict, dateFrom, dateTo, dateSort]);
 
+  const analysis = useMemo(() => {
+    const total = visible.reduce((sum, project) => sum + (project.testCount ?? 0), 0);
+    const passed = visible.reduce((sum, project) => sum + (project.passCount ?? 0), 0);
+    const failed = visible.reduce((sum, project) => sum + (project.failCount ?? 0), 0);
+    const incomplete = visible.reduce(
+      (sum, project) => sum + (project.incompleteCount ?? 0),
+      0,
+    );
+    const completed = passed + failed;
+
+    return {
+      total,
+      passed,
+      failed,
+      incomplete,
+      passRate: completed > 0 ? `${Math.round((passed / completed) * 100)}%` : "—",
+    };
+  }, [visible]);
+
   if (error) {
     return (
       <div className="flex items-start gap-2 rounded-md border border-reject/40 bg-reject-wash px-4 py-3 text-sm text-reject" role="alert">
@@ -129,6 +147,22 @@ export function Dashboard() {
           </p>
         </div>
       </div>
+
+      {session.user?.role === "admin" && (
+        <Card aria-label="Numerical test analysis">
+          <CardContent className="grid grid-cols-2 divide-x divide-y divide-border p-0 sm:grid-cols-5 sm:divide-y-0">
+            <AnalysisMetric label="Total tests" value={analysis.total} />
+            <AnalysisMetric label="Passed" value={analysis.passed} valueClass="text-verify" />
+            <AnalysisMetric label="Failed" value={analysis.failed} valueClass="text-reject" />
+            <AnalysisMetric
+              label="Incomplete"
+              value={analysis.incomplete}
+              valueClass="text-pending"
+            />
+            <AnalysisMetric label="Pass rate" value={analysis.passRate} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="flex flex-col gap-2 pt-5 sm:flex-row sm:flex-wrap sm:items-center">
@@ -258,6 +292,23 @@ export function Dashboard() {
           </TableBody>
         </Table>
       </Card>
+    </div>
+  );
+}
+
+function AnalysisMetric({
+  label,
+  value,
+  valueClass,
+}: {
+  label: string;
+  value: number | string;
+  valueClass?: string;
+}) {
+  return (
+    <div className="flex min-h-24 flex-col justify-center px-4 py-4 sm:px-5">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className={cn("tnum mt-1 text-2xl font-bold", valueClass)}>{value}</p>
     </div>
   );
 }
