@@ -52,8 +52,14 @@ CREATE TABLE IF NOT EXISTS project (
   examination_start_date TEXT,
   examination_end_date   TEXT,
   status                 TEXT    NOT NULL DEFAULT 'draft'
-                                 CHECK (status IN ('draft','in_progress','completed','approved')),
+                                 CHECK (status IN ('draft','reviewed','approved')),
   created_by             INTEGER REFERENCES "user"(id),
+  -- Legacy review columns remain for compatibility with existing databases.
+  review_feedback        TEXT,
+  reviewed_by            INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
+  reviewed_at            TIMESTAMPTZ,
+  approved_by            INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
+  approved_at            TIMESTAMPTZ,
   created_at             TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at             TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

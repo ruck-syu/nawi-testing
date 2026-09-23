@@ -50,6 +50,7 @@ async function migrateReportFormat(): Promise<void> {
 }
 
 export async function applyMigrations(): Promise<void> {
+  await migrateProjectReviewWorkflow();
   await migrateReportFormat();
   await migrateUserProfile();
   await migrateReportPrintSignature();
@@ -58,6 +59,46 @@ export async function applyMigrations(): Promise<void> {
   await migrateRunPressure();
   await migrateStandardOimlOnly();
   await migrateSignatureUserLink();
+}
+
+/** Replace the legacy project lifecycle with the technician/admin review workflow. */
+async function migrateProjectReviewWorkflow(): Promise<void> {
+  await getSql().unsafe(`
+    ALTER TABLE project ADD COLUMN IF NOT EXISTS review_feedback TEXT;
+    ALTER TABLE project ADD COLUMN IF NOT EXISTS reviewed_by INTEGER
+      REFERENCES "user"(id) ON DELETE SET NULL;
+    ALTER TABLE project ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
+    ALTER TABLE project ADD COLUMN IF NOT EXISTS approved_by INTEGER
+      REFERENCES "user"(id) ON DELETE SET NULL;
+    ALTER TABLE project ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+
+    UPDATE project SET status = 'draft' WHERE status IN ('in_progress', 'completed', 'needs_changes');
+
+    DO $$
+    DECLARE
+      r record;
+    BEGIN
+      FOR r IN
+        SELECT c.conname AS name
+          FROM pg_constraint c
+          JOIN pg_class t ON t.oid = c.conrelid
+         WHERE t.relname = 'project'
+           AND c.contype = 'c'
+           AND pg_get_constraintdef(c.oid) ILIKE '%status%'
+           AND pg_get_constraintdef(c.oid) NOT ILIKE '%reviewed%'
+      LOOP
+        EXECUTE format('ALTER TABLE project DROP CONSTRAINT %I', r.name);
+      END LOOP;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+         WHERE c.conrelid = 'project'::regclass
+           AND c.conname = 'project_status_check'
+      ) THEN
+        ALTER TABLE project ADD CONSTRAINT project_status_check
+          CHECK (status IN ('draft','reviewed','approved'));
+      END IF;
+    END $$;
+  `);
 }
 
 /**

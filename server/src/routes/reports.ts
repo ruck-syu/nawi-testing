@@ -13,6 +13,7 @@ import {
   listReports,
   renderProjectReport,
 } from '../services/report.ts';
+import { requireTechnicianEditableProject } from '../services/review.ts';
 
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const EXTENSIONS: Record<string, string> = {
@@ -32,13 +33,9 @@ export function registerReportRoutes(router: Router): void {
     async (ctx) => {
       const projectId = Number(ctx.params.id);
       const format = oneOf(ctx.body.format, ['html', 'pdf', 'docx'] as const, 'format', 'html');
-      // Unsigned copy when explicitly false; anything else (absent, true, junk)
-      // prints the block, so old clients keep yesterday's behaviour.
-      const printSignature = ctx.body.print_signature !== false;
       const { report, pdfFallback } = await generateReport(projectId, {
         format,
         generatedBy: ctx.user?.name ?? undefined,
-        printSignature,
       });
       return {
         report,
@@ -145,9 +142,7 @@ export function registerReportRoutes(router: Router): void {
     '/api/projects/:id/attachments',
     async (ctx) => {
       const projectId = Number(ctx.params.id);
-      if (!await get('SELECT id FROM project WHERE id = ?', [projectId])) {
-        throw notFound(`Project ${projectId} not found`);
-      }
+      await requireTechnicianEditableProject(projectId, ctx);
       if (ctx.files.length === 0) throw badRequest('No file uploaded');
 
       fs.mkdirSync(config.uploadsDir, { recursive: true });
@@ -221,6 +216,9 @@ export function registerReportRoutes(router: Router): void {
     '/api/attachments/:id',
     async (ctx) => {
       const id = num(ctx.params.id, 'id');
+      const attachment = await get<{ project_id: number }>('SELECT project_id FROM attachment WHERE id = ?', [id]);
+      if (!attachment) throw notFound(`Attachment ${id} not found`);
+      await requireTechnicianEditableProject(attachment.project_id, ctx);
       const { changes } = await run('UPDATE attachment SET caption = ? WHERE id = ?', [
         strOrNull(ctx.body.caption),
         id,
@@ -235,11 +233,12 @@ export function registerReportRoutes(router: Router): void {
     '/api/attachments/:id',
     async (ctx) => {
       const id = Number(ctx.params.id);
-      const attachment = await get<{ file_path: string }>(
+      const attachment = await get<{ file_path: string; project_id: number }>(
         'SELECT file_path FROM attachment WHERE id = ?',
         [id],
       );
       if (!attachment) throw notFound(`Attachment ${id} not found`);
+      await requireTechnicianEditableProject(attachment.project_id, ctx);
       await run('DELETE FROM attachment WHERE id = ?', [id]);
       try {
         fs.rmSync(path.join(config.uploadsDir, attachment.file_path), { force: true });
