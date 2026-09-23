@@ -1,0 +1,19 @@
+# Railway service config for the NAWI Testing API.
+#
+# Deploy: New Project → Deploy from GitHub Repo → point at this repo.
+# Railway auto-detects Node 22 from package.json engines. Then set variables:
+#   DATABASE_URL   Supabase pooler URL (port 6543, transaction mode)
+#   CLIENT_ORIGIN  https://your-app.vercel.app (comma-separated if several)
+#   JWT_SECRET     any long random string (else sessions reset on every restart)
+# The UI lives on Vercel; this service is API-only (no web build needed).
+
+[build]
+builder = "NIXPACKS"
+buildCommand = "npm ci"
+
+[deploy]
+startCommand = "npm start"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

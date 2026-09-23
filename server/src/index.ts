@@ -26,12 +26,12 @@ registerReportRoutes(router);
 registerUserRoutes(router);
 
 const webDistDir = path.join(ROOT, 'web', 'dist');
-// The web client is required: without its index.html there is nothing to serve on /.
+// The web client is optional: API-only hosts (no web build) serve the API,
+// reports and uploads, while the UI lives elsewhere (e.g. Vercel).
 const clientDir = webDistDir;
-if (!fs.existsSync(path.join(clientDir, 'index.html'))) {
-  throw new Error(
-    'web/dist/index.html is missing — build the client first with a Vite build inside web/.',
-  );
+const hasClient = fs.existsSync(path.join(clientDir, 'index.html'));
+if (!hasClient) {
+  console.log('  web/dist/index.html is missing — running API-only (no UI on /).');
 }
 
 const server = createServer({

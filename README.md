@@ -61,30 +61,38 @@ Open http://127.0.0.1:4000 and sign in:
 
 For frontend development with hot reload: `npx vite` inside `web/` (port 5173, proxies `/api` to the backend on 4000).
 
-## Host the UI on Vercel
+## Hosting: Vercel UI + Railway API
 
-The repo ships a `vercel.json`: import the repo, Vercel builds `web/` and serves it
-statically (SPA fallback included). The install step sets `PUPPETEER_SKIP_DOWNLOAD=1`
-so it never downloads the headless-Chrome binary the API uses for server-side PDFs —
-that download is what hangs installs on networks where the Chrome
-CDN is blocked. Do NOT use Vercel's Supabase integration — nothing in this repo reads
-its variables, so connecting it changes nothing. The database connection is direct
-(UI → API server → Supabase Postgres) and needs exactly two values:
+The UI talks to the API server, and only the API server talks to Supabase
+(UI → API → Supabase Postgres). Host them as two services:
 
-1. **API host** (wherever `npm start` runs) needs `DATABASE_URL`. Use the Supabase
-   **pooler URL** (port `6543`, Supavisor `transaction` mode) rather than the direct
-   connection — direct connections hang from hosts without IPv6, which looks exactly
-   like an app that "keeps loading". The server disables prepared statements
+**API on Railway** — New Project → Deploy from GitHub Repo → this repo
+(`railway.toml` is included: Nixpacks build, `/api/health` healthcheck, restart on
+failure). Then set three variables and redeploy:
+
+1. `DATABASE_URL` — Supabase **pooler URL** (port `6543`, transaction mode), not the
+   direct connection. Direct connections hang from hosts without IPv6, which looks
+   exactly like an app that "keeps loading". The server disables prepared statements
    automatically for pooler URLs.
-2. **Same API host** needs `CLIENT_ORIGIN=https://your-app.vercel.app` (comma-separated
-   if several UIs call one API), otherwise the browser blocks every request.
-3. **Vercel project** → Environment Variables: `VITE_API_BASE=https://your-api-host`
-   (no trailing slash), then redeploy. Leave it unset when UI and API share an origin.
+2. `CLIENT_ORIGIN=https://your-app.vercel.app` (comma-separated if several UIs call
+   one API), otherwise the browser blocks every request.
+3. `JWT_SECRET` — any long random string. Without it, sessions reset on every restart.
 
-If sign-in fails, the login screen now names the API origin it tried and gives up after
-15 s instead of loading forever — that message tells you which of the three is wrong.
-A quick chain check from any machine: `curl https://your-api-host/api/health` should
+**UI on Vercel** — import the repo (`vercel.json` builds `web/` and serves it statically
+with SPA fallback). The install step sets `PUPPETEER_SKIP_DOWNLOAD=1` so it never
+downloads the headless-Chrome binary the API uses for server-side PDFs. Do NOT use
+Vercel's Supabase integration — nothing in this repo reads its variables. Set one
+variable and redeploy (Vite bakes it in at build time):
+`VITE_API_BASE=https://your-api.up.railway.app` (no trailing slash).
+
+If sign-in fails, the login screen names the API origin it tried and gives up after
+15 s instead of loading forever — that message tells you which link is wrong.
+Chain check from any machine: `curl https://your-api.up.railway.app/api/health` should
 return `{"ok":true,…}` (it touches the database, so it proves API→Supabase too).
+
+Note: uploaded photos and generated report files live on the API host's disk, so they
+disappear if the service is rebuilt — database rows remain and files regenerate on
+demand.
 
 ## 3-minute demo script
 
