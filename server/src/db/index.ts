@@ -33,13 +33,11 @@ export function getSql(): QueryClient {
     const pooled = /:6543(\/|$|\?)/.test(url) || url.includes('pgbouncer=true');
     sql = postgres(url, {
       ssl: 'require',
-      max: 20,
-      // Long idle retention: every reconnect to Supabase costs a TLS handshake
-      // (~0.3–1 s), and with 60 s the pool went cold between ordinary clicks, so
-      // nearly every request paid it. Ten minutes keeps the working set warm; the
-      // pooler is built for idle connections.
-      idle_timeout: 600,
-      connect_timeout: 15,
+      max: 10,
+      // Cap retries so one bad password does not hammer Supabase and trip
+      // the account-level circuit breaker. The connect timeout is the main
+      // lever for slow cold starts.
+      connect_timeout: 10,
       fetch_types: false,
       ...(pooled ? { prepare: false } : {}),
     });

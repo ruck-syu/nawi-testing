@@ -64,7 +64,18 @@ try {
   await applySchema();
   await applyMigrations();
 } catch (error) {
-  console.error(`\nCould not connect to PostgreSQL or apply the schema.\n${(error as Error).message}\n`);
+  const msg = (error as Error).message;
+  console.error(`\nCould not connect to PostgreSQL or apply the schema.\n${msg}\n`);
+  if (msg.includes('ENOTFOUND') || msg.includes('ENETUNREACH')) {
+    console.error('[hint] DATABASE_URL host is unreachable — you are probably using the direct');
+    console.error('       connection (port 5432) instead of the pooler. Fix: Supabase Dashboard');
+    console.error('       → Settings → Database → Connection string → switch to "Transaction" mode');
+    console.error('       and paste that URL (port 6543) into Railway Variables → DATABASE_URL.\n');
+  } else if (msg.includes('authentication') || msg.includes('password') || msg.includes('ECIRCUITBREAKER')) {
+    console.error('[hint] Database authentication failed — the password in DATABASE_URL does not');
+    console.error('       match the database password. Fix: Supabase Dashboard → Settings → Database');
+    console.error('       → "Database password" (reset it if needed), then update Railway Variables.\n');
+  }
   process.exit(1);
 }
 

@@ -18,6 +18,9 @@ buildCommand = "npm install && cd web && npx vite build"
 [deploy]
 startCommand = "npm start"
 healthcheckPath = "/api/health"
-healthcheckTimeout = 300
+healthcheckTimeout = 60
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
+
+# Production mode: NODE_ENV=production (set in Railway → Variables).
+# It is not set here because Railway injects it at runtime from its own env.
