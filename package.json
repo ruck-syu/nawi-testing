@@ -28,7 +28,6 @@
     "vite": "^8.2.2"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.112.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "docx": "^9.7.1",

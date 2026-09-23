@@ -67,8 +67,9 @@ The repo ships a `vercel.json`: import the repo, Vercel builds `web/` and serves
 statically (SPA fallback included). The install step skips optional dependencies
 (`--omit=optional`) so it never downloads the headless-Chrome binary the API uses for
 server-side PDFs — that download is what hangs installs on networks where the Chrome
-CDN is blocked. The UI talks to the API server, and only the API
-server talks to Supabase — so three values must line up, or the app spins forever:
+CDN is blocked. Do NOT use Vercel's Supabase integration — nothing in this repo reads
+its variables, so connecting it changes nothing. The database connection is direct
+(UI → API server → Supabase Postgres) and needs exactly two values:
 
 1. **API host** (wherever `npm start` runs) needs `DATABASE_URL`. Use the Supabase
    **pooler URL** (port `6543`, Supavisor `transaction` mode) rather than the direct
