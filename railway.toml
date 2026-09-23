@@ -11,7 +11,9 @@
 
 [build]
 builder = "NIXPACKS"
-buildCommand = "npm ci && cd web && npx vite build"
+# npm install (not ci): ci deletes node_modules outright and fails with
+# EBUSY on the layer-cached .cache dir. Versions still follow the lockfile.
+buildCommand = "npm install && cd web && npx vite build"
 
 [deploy]
 startCommand = "npm start"
