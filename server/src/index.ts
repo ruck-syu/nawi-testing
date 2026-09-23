@@ -27,7 +27,7 @@ registerUserRoutes(router);
 
 const webDistDir = path.join(ROOT, 'web', 'dist');
 // The web client is optional: API-only hosts (no web build) serve the API,
-// reports and uploads, while the UI lives elsewhere (e.g. Vercel).
+// reports and uploads, while the UI lives elsewhere.
 const clientDir = webDistDir;
 const hasClient = fs.existsSync(path.join(clientDir, 'index.html'));
 if (!hasClient) {

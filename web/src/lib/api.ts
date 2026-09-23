@@ -58,9 +58,9 @@ interface RequestOptions {
 }
 
 /**
- * Backend origin. Empty when UI and API share an origin (local `npm start`,
- * or Vite dev via its proxy); set VITE_API_BASE to the API URL when the UI
- * is hosted separately (e.g. on Vercel).
+ * Backend origin. Empty when UI and API share an origin (the normal case:
+ * `npm start` serves both, as does the Railway deployment); set VITE_API_BASE
+ * to the API URL only when the UI is hosted separately from it.
  */
 export const apiBase =
   (import.meta as any).env?.VITE_API_BASE?.replace(/\/$/, "") ?? "";
