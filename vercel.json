@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "npm ci",
+  "installCommand": "npm ci --omit=optional",
   "buildCommand": "cd web && npx vite build",
   "outputDirectory": "web/dist",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
