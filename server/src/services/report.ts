@@ -34,8 +34,6 @@ export interface RenderOptions {
   /** Adds an on-screen print toolbar. Omitted for Puppeteer, which prints directly. */
   interactive?: boolean;
   generatedBy?: string;
-  /** Print the signature block. False produces an unsigned copy of the same record. */
-  printSignature?: boolean;
 }
 
 /**
@@ -91,10 +89,9 @@ function slug(value: string): string {
  */
 export async function generateReport(
   projectId: number,
-  options: { format?: 'html' | 'pdf' | 'docx'; generatedBy?: string; printSignature?: boolean } = {},
+  options: { format?: 'html' | 'pdf' | 'docx'; generatedBy?: string } = {},
 ): Promise<{ report: GeneratedReport; pdfFallback: boolean }> {
   const format = options.format ?? 'html';
-  const printSignature = options.printSignature ?? true;
   // The model is built once and shared: persistence reads project/rollup from it and
   // the renderer presents it, so generation can never render different data than it files.
   const model = await buildReportModel(projectId, { generatedBy: options.generatedBy });
@@ -111,7 +108,7 @@ export async function generateReport(
 
   if (format === 'docx') {
     // The editable annex: only the .docx is written, no HTML sidecar.
-    const buffer = await docxRenderer.render(model, { printSignature });
+    const buffer = await docxRenderer.render(model);
     filePath = path.join(config.reportsDir, `${base}.docx`);
     fs.writeFileSync(filePath, buffer);
     actualFormat = 'docx';
@@ -123,7 +120,6 @@ export async function generateReport(
       // guidance toward Save-as-PDF.
       interactive: true,
       generatedBy: options.generatedBy,
-      printSignature,
     });
 
     const htmlPath = path.join(config.reportsDir, `${base}.html`);
@@ -159,7 +155,7 @@ export async function generateReport(
       rollup.testCount,
       rollup.passCount,
       rollup.failCount,
-      printSignature,
+      Boolean(model.signature),
     ],
   );
 

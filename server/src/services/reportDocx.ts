@@ -1102,7 +1102,6 @@ function signatureCell(name: string, title: string, date: string, imagePath?: st
 function conclusionSection(
   model: ReportModel,
   signature: SignatureModel | null,
-  printSignature = true,
 ): DocxElement[] {
   const { project, rollup } = model;
   const plural = rollup.models.length !== 1;
@@ -1149,8 +1148,7 @@ function conclusionSection(
               signature?.signed_by_name ?? '',
               signature?.signed_by_title ?? 'Responsible for the examination',
               signature?.signed_at ?? '',
-              // Unchecked: the ruled block stays, only the uploaded image is withheld.
-              printSignature ? (signature?.signature_image_path ?? null) : null,
+              signature?.signature_image_path ?? null,
             ),
           ],
         }),
@@ -1172,12 +1170,11 @@ export class DocxRenderer implements IReportRenderer<Buffer> {
   readonly format = 'docx' as const;
 
   async render(model: ReportModel, _options: RenderOptions = {}): Promise<Buffer> {
-    const printSignature = _options.printSignature ?? true;
     const children: DocxElement[] = [
       ...coverSection(model),
       ...model.models.flatMap((section) => modelSection(section, model.project.standard_version)),
       ...checklistSection(model.checklist, model.project.standard_version),
-      ...conclusionSection(model, model.signature, printSignature),
+      ...conclusionSection(model, model.signature),
     ];
     const reportHeader = new Header({
       children: [

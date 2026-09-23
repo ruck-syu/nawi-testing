@@ -95,13 +95,16 @@ demand.
 1. **Dashboard** — a seeded examination is ready: task **A530947** (Taiwan Scale NHB150,
    Max 150 g, class II). Try the search and date filters.
 2. **Open it** — project summary, instrument models, per-test verdicts.
-3. **A test sheet** (e.g. Intrinsic Error) — edit one indication and watch that row flip to
+3. **A test sheet** (e.g. Intrinsic Error) — as the technician, edit one indication and watch that row flip to
    fail while neighbours stay green; the run verdict and project rollup follow. Type text
    into a reading to see the invalid-datatype guard. Restore the value and it rolls back.
 4. **Checklist** — assess EN 45501 clauses.
 5. **Generate report** — one click produces the document; find it in the **Reports** vault
    alongside earlier versions.
-6. **Test history** — every run, filterable, with the anchoring demo per page.
+6. **Review** — the technician can mark the report as Reviewed when ready. An administrator can
+   approve the report after uploading an administrator signature in Profile. Approval makes the
+   examination read-only.
+7. **Test history** — every run, filterable, with the anchoring demo per page.
 
 ## Checks
 

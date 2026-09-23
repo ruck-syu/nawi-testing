@@ -89,7 +89,7 @@ def step(n, title):
     print(f'\n--- {n}. {title} ' + '-' * max(0, 62 - len(title)))
 
 
-st, r = call('POST', '/api/auth/login', {'email': 'admin@delta.test', 'password': 'admin123'})
+st, r = call('POST', '/api/auth/login', {'email': 'tech@delta.test', 'password': 'tech123'})
 TOKEN = r['token']
 
 # =========================================================================== 1

@@ -33,6 +33,7 @@ import {
   toInstrumentSpec,
 } from '../services/evaluation.ts';
 import { pohAnchorChain, pohStatus, pohVerify } from '../services/poh.ts';
+import { requireTechnicianEditableProject } from '../services/review.ts';
 
 const RUN_STATUSES = ['not_started', 'in_progress', 'complete'] as const;
 
@@ -617,7 +618,8 @@ function withPoH<T extends { id: number; projectId: number; testTypeCode: string
     async (ctx) => {
       const modelId = Number(ctx.params.id);
       const code = ctx.params.code!;
-      await getModel(modelId);
+      const model = await getModel(modelId);
+      await requireTechnicianEditableProject(await projectIdForModel(model.id), ctx);
 
       const testType = findTestType(code);
       if (!testType) throw notFound(`Unknown test type: ${code}`);
@@ -687,6 +689,7 @@ function withPoH<T extends { id: number; projectId: number; testTypeCode: string
     async (ctx) => {
       const runId = Number(ctx.params.id);
       const testRun = await getTestRun(runId);
+      await requireTechnicianEditableProject(await projectIdForModel(testRun.model_id), ctx);
       const testType = findTestType(testRun.test_type_code);
       const formKind = testType?.formKind ?? null;
 
@@ -774,6 +777,7 @@ function withPoH<T extends { id: number; projectId: number; testTypeCode: string
     async (ctx) => {
       const runId = Number(ctx.params.id);
       const testRun = await getTestRun(runId);
+      await requireTechnicianEditableProject(await projectIdForModel(testRun.model_id), ctx);
       const formKind = findTestType(testRun.test_type_code)?.formKind ?? null;
 
       const next = await get<{ next: number }>(
@@ -814,7 +818,8 @@ function withPoH<T extends { id: number; projectId: number; testTypeCode: string
     '/api/test-runs/:runId/rows/:rowId',
     async (ctx) => {
       const runId = Number(ctx.params.runId);
-      await getTestRun(runId);
+      const testRun = await getTestRun(runId);
+      await requireTechnicianEditableProject(await projectIdForModel(testRun.model_id), ctx);
       const { changes } = await run('DELETE FROM observation WHERE id = ? AND test_run_id = ?', [
         Number(ctx.params.rowId),
         runId,
@@ -831,6 +836,7 @@ function withPoH<T extends { id: number; projectId: number; testTypeCode: string
     async (ctx) => {
       const runId = Number(ctx.params.id);
       const testRun = await getTestRun(runId);
+      await requireTechnicianEditableProject(await projectIdForModel(testRun.model_id), ctx);
       const formKind = findTestType(testRun.test_type_code)?.formKind ?? null;
       return await transaction(async () => {
         await run('DELETE FROM observation WHERE test_run_id = ?', [runId]);
@@ -845,7 +851,8 @@ function withPoH<T extends { id: number; projectId: number; testTypeCode: string
     '/api/test-runs/:id',
     async (ctx) => {
       const runId = Number(ctx.params.id);
-      await getTestRun(runId);
+      const testRun = await getTestRun(runId);
+      await requireTechnicianEditableProject(await projectIdForModel(testRun.model_id), ctx);
       await run('DELETE FROM test_run WHERE id = ?', [runId]);
       return { deleted: runId };
     },
