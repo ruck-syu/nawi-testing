@@ -61,36 +61,31 @@ Open http://127.0.0.1:4000 and sign in:
 
 For frontend development with hot reload: `npx vite` inside `web/` (port 5173, proxies `/api` to the backend on 4000).
 
-## Hosting: Vercel UI + Railway API
+## Hosting: everything on Railway
 
-The UI talks to the API server, and only the API server talks to Supabase
-(UI → API → Supabase Postgres). Host them as two services:
+One service serves both the UI and the API from a single origin (`railway.toml` is
+included: Nixpacks build, `/api/health` healthcheck, restart on failure).
 
-**API on Railway** — New Project → Deploy from GitHub Repo → this repo
-(`railway.toml` is included: Nixpacks build, `/api/health` healthcheck, restart on
-failure). Then set three variables and redeploy:
+Deploy: New Project → Deploy from GitHub Repo → this repo. Then set two variables
+and redeploy:
 
 1. `DATABASE_URL` — Supabase **pooler URL** (port `6543`, transaction mode), not the
    direct connection. Direct connections hang from hosts without IPv6, which looks
    exactly like an app that "keeps loading". The server disables prepared statements
    automatically for pooler URLs.
-2. `CLIENT_ORIGIN=https://your-app.vercel.app` (comma-separated if several UIs call
-   one API), otherwise the browser blocks every request.
-3. `JWT_SECRET` — any long random string. Without it, sessions reset on every restart.
+2. `JWT_SECRET` — any long random string. Without it, sessions reset on every restart.
 
-**UI on Vercel** — import the repo (`vercel.json` builds `web/` and serves it statically
-with SPA fallback). The install step sets `PUPPETEER_SKIP_DOWNLOAD=1` so it never
-downloads the headless-Chrome binary the API uses for server-side PDFs. Do NOT use
-Vercel's Supabase integration — nothing in this repo reads its variables. Set one
-variable and redeploy (Vite bakes it in at build time):
-`VITE_API_BASE=https://your-api.up.railway.app` (no trailing slash).
+No CORS or API-base configuration needed: the server builds and serves the client
+itself, so UI and API share one origin. The build skips the headless-Chrome download
+to stay fast and deterministic — PDF requests fall back to print-styled HTML with
+browser Save-as-PDF instructions (the app says so when it happens).
 
 If sign-in fails, the login screen names the API origin it tried and gives up after
-15 s instead of loading forever — that message tells you which link is wrong.
-Chain check from any machine: `curl https://your-api.up.railway.app/api/health` should
-return `{"ok":true,…}` (it touches the database, so it proves API→Supabase too).
+15 s instead of loading forever. Chain check from any machine:
+`curl https://your-app.up.railway.app/api/health` should return `{"ok":true,…}`
+(it touches the database, so it proves API→Supabase too).
 
-Note: uploaded photos and generated report files live on the API host's disk, so they
+Note: uploaded photos and generated report files live on the service's disk, so they
 disappear if the service is rebuilt — database rows remain and files regenerate on
 demand.
 

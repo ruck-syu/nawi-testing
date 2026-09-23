@@ -1,7 +1,0 @@
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "PUPPETEER_SKIP_DOWNLOAD=1 npm ci",
-  "buildCommand": "cd web && npx vite build",
-  "outputDirectory": "web/dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
-}

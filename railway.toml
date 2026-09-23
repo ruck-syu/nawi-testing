@@ -1,15 +1,17 @@
-# Railway service config for the NAWI Testing API.
+# Railway service config for NAWI Testing (API + UI, single service).
 #
 # Deploy: New Project → Deploy from GitHub Repo → point at this repo.
 # Railway auto-detects Node 22 from package.json engines. Then set variables:
 #   DATABASE_URL   Supabase pooler URL (port 6543, transaction mode)
-#   CLIENT_ORIGIN  https://your-app.vercel.app (comma-separated if several)
 #   JWT_SECRET     any long random string (else sessions reset on every restart)
-# The UI lives on Vercel; this service is API-only (no web build needed).
+# No CLIENT_ORIGIN / VITE_API_BASE needed: the server serves the built UI itself,
+# so UI and API share one origin. The Chrome download is skipped to keep builds
+# fast and deterministic; PDF requests fall back to print-styled HTML with
+# browser Save-as-PDF instructions (the app says so when it happens).
 
 [build]
 builder = "NIXPACKS"
-buildCommand = "npm ci"
+buildCommand = "PUPPETEER_SKIP_DOWNLOAD=1 npm ci && cd web && npx vite build"
 
 [deploy]
 startCommand = "npm start"
