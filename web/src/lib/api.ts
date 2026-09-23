@@ -72,6 +72,18 @@ export function fileUrl(path: string | null | undefined): string {
   return `${apiBase}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+/** Give up on an unreachable API instead of spinning forever. */
+const REQUEST_TIMEOUT_MS = 15000;
+
+function unreachable(): ApiError {
+  const where = apiBase || "the same origin as this page";
+  return new ApiError(
+    0,
+    `Cannot reach the API at ${where}. Check that VITE_API_BASE points at a running server and the server allows this origin (CLIENT_ORIGIN).`,
+    null,
+  );
+}
+
 async function request(method: string, path: string, { body, form, signal }: RequestOptions = {}) {
   const headers: Record<string, string> = {};
   const token = session.token;
@@ -86,11 +98,20 @@ async function request(method: string, path: string, { body, form, signal }: Req
   }
 
   let response: Response;
+  const timeout = new AbortController();
+  const timer = setTimeout(() => timeout.abort(), REQUEST_TIMEOUT_MS);
+  const forwardAbort = () => timeout.abort();
+  signal?.addEventListener("abort", forwardAbort);
   try {
-    response = await fetch(`${apiBase}/api${path}`, { method, headers, body: payload, signal });
+    response = await fetch(`${apiBase}/api${path}`, { method, headers, body: payload, signal: timeout.signal });
   } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") throw error;
-    throw new ApiError(0, "Cannot reach the server. Check that it is still running.", null);
+    // Caller-cancelled stays an AbortError; anything else (refused, DNS,
+    // timeout) names the API origin so a misconfigured deploy is obvious.
+    if (signal?.aborted) throw error;
+    throw unreachable();
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", forwardAbort);
   }
 
   if (response.status === 204) return null;

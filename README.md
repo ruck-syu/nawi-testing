@@ -64,13 +64,23 @@ For frontend development with hot reload: `npx vite` inside `web/` (port 5173, p
 ## Host the UI on Vercel
 
 The repo ships a `vercel.json`: import the repo, Vercel builds `web/` and serves it
-statically (SPA fallback included). The API stays wherever you run the server; point the
-UI at it with one variable:
+statically (SPA fallback included). The UI talks to the API server, and only the API
+server talks to Supabase — so three values must line up, or the app spins forever:
 
-- Vercel project setting → Environment Variables: `VITE_API_BASE=https://your-api-host`
-  (no trailing slash; leave it unset when UI and API share an origin).
-- On the API host, allow the Vercel origin through CORS:
-  `CLIENT_ORIGIN=https://your-app.vercel.app` (comma-separated if several UIs call one API).
+1. **API host** (wherever `npm start` runs) needs `DATABASE_URL`. Use the Supabase
+   **pooler URL** (port `6543`, Supavisor `transaction` mode) rather than the direct
+   connection — direct connections hang from hosts without IPv6, which looks exactly
+   like an app that "keeps loading". The server disables prepared statements
+   automatically for pooler URLs.
+2. **Same API host** needs `CLIENT_ORIGIN=https://your-app.vercel.app` (comma-separated
+   if several UIs call one API), otherwise the browser blocks every request.
+3. **Vercel project** → Environment Variables: `VITE_API_BASE=https://your-api-host`
+   (no trailing slash), then redeploy. Leave it unset when UI and API share an origin.
+
+If sign-in fails, the login screen now names the API origin it tried and gives up after
+15 s instead of loading forever — that message tells you which of the three is wrong.
+A quick chain check from any machine: `curl https://your-api-host/api/health` should
+return `{"ok":true,…}` (it touches the database, so it proves API→Supabase too).
 
 ## 3-minute demo script
 

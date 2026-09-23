@@ -27,7 +27,11 @@ function postgresQuery(query: string): string {
 
 export function getSql(): QueryClient {
   if (!sql) {
-    sql = postgres(getDatabaseUrl(), {
+    const url = getDatabaseUrl();
+    // Supabase's connection pooler (port 6543, transaction mode) cannot use
+    // prepared statements — without this every query fails against a pooler URL.
+    const pooled = /:6543(\/|$|\?)/.test(url) || url.includes('pgbouncer=true');
+    sql = postgres(url, {
       ssl: 'require',
       max: 20,
       // Long idle retention: every reconnect to Supabase costs a TLS handshake
@@ -37,6 +41,7 @@ export function getSql(): QueryClient {
       idle_timeout: 600,
       connect_timeout: 15,
       fetch_types: false,
+      ...(pooled ? { prepare: false } : {}),
     });
   }
   return sql;
