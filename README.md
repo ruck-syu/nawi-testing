@@ -64,9 +64,9 @@ For frontend development with hot reload: `npx vite` inside `web/` (port 5173, p
 ## Host the UI on Vercel
 
 The repo ships a `vercel.json`: import the repo, Vercel builds `web/` and serves it
-statically (SPA fallback included). The install step skips optional dependencies
-(`--omit=optional`) so it never downloads the headless-Chrome binary the API uses for
-server-side PDFs — that download is what hangs installs on networks where the Chrome
+statically (SPA fallback included). The install step sets `PUPPETEER_SKIP_DOWNLOAD=1`
+so it never downloads the headless-Chrome binary the API uses for server-side PDFs —
+that download is what hangs installs on networks where the Chrome
 CDN is blocked. Do NOT use Vercel's Supabase integration — nothing in this repo reads
 its variables, so connecting it changes nothing. The database connection is direct
 (UI → API server → Supabase Postgres) and needs exactly two values:
