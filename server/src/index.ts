@@ -16,6 +16,7 @@ import { registerAuthRoutes } from './routes/auth.ts';
 import { registerProjectRoutes } from './routes/projects.ts';
 import { registerTestRoutes } from './routes/tests.ts';
 import { registerReportRoutes } from './routes/reports.ts';
+import { registerShareRoutes } from './routes/share.ts';
 import { registerUserRoutes } from './routes/users.ts';
 
 const router = new Router();
@@ -23,6 +24,7 @@ registerAuthRoutes(router);
 registerProjectRoutes(router);
 registerTestRoutes(router);
 registerReportRoutes(router);
+registerShareRoutes(router);
 registerUserRoutes(router);
 
 const webDistDir = path.join(ROOT, 'web', 'dist');
