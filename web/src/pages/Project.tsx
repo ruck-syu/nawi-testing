@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import QRCode from "qrcode";
 import { api, ApiError, fileUrl, session } from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -56,6 +57,12 @@ export function Project() {
   const [genFormat, setGenFormat] = useState("pdf");
   const [notice, setNotice] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState(false);
+  const [share, setShare] = useState<{ token: string; created_at?: string } | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareMsg, setShareMsg] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [qrError, setQrError] = useState<string | null>(null);
+  const qrRef = useRef<HTMLCanvasElement | null>(null);
 
   async function reload() {
     const [detail, summary, checklist] = await Promise.all([
@@ -73,6 +80,12 @@ export function Project() {
       .catch((err) => {
         if (live) setError(err instanceof ApiError ? err.message : "Could not load the examination.");
       });
+    api
+      .get<{ share: { token: string; created_at?: string } | null }>(`/projects/${id}/share`)
+      .then((res) => {
+        if (live) setShare(res.share);
+      })
+      .catch(() => undefined);
     return () => {
       live = false;
     };
@@ -93,6 +106,81 @@ export function Project() {
     } finally {
       setReviewing(false);
     }
+  }
+
+  async function createShareLink() {
+    setShareBusy(true);
+    setShareMsg(null);
+    try {
+      const res = await api.post<{ share: { token: string; created_at?: string } }>(
+        `/projects/${id}/share`,
+      );
+      setShare(res.share);
+      setShareMsg(share ? "Tracking link regenerated. The previous link no longer works." : "Tracking link created.");
+    } catch (err) {
+      setShareMsg(err instanceof ApiError ? err.message : "Could not create the tracking link.");
+    } finally {
+      setShareBusy(false);
+    }
+  }
+
+  async function revokeShareLink() {
+    setShareBusy(true);
+    setShareMsg(null);
+    try {
+      await api.delete(`/projects/${id}/share`);
+      setShare(null);
+      setShareMsg("Tracking link revoked.");
+    } catch (err) {
+      setShareMsg(err instanceof ApiError ? err.message : "Could not revoke the tracking link.");
+    } finally {
+      setShareBusy(false);
+    }
+  }
+
+  async function copyShareLink(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareMsg("Link copied to clipboard.");
+    } catch {
+      setShareMsg("Copy failed — select the link manually.");
+    }
+  }
+
+  // Override for the origin baked into tracking links (e.g. set
+  // VITE_SHARE_BASE_URL to the Railway URL so links generated while working
+  // locally still point manufacturers at production). Defaults to wherever
+  // this page was opened from.
+  const shareBase =
+    ((import.meta as any).env?.VITE_SHARE_BASE_URL as string | undefined)?.replace(/\/$/, "") ??
+    `${window.location.origin}${window.location.pathname}`;
+  const shareUrl = share ? `${shareBase}#/track/${share.token}` : null;
+
+  useEffect(() => {
+    if (!shareUrl || !shareOpen || !qrRef.current) return;
+    setQrError(null);
+    QRCode.toCanvas(qrRef.current, shareUrl, { width: 200, margin: 1 }).catch(() =>
+      setQrError("Could not render the QR code."),
+    );
+  }, [shareUrl, shareOpen]);
+
+  // Close the tracking dialog with Escape.
+  useEffect(() => {
+    if (!shareOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShareOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [shareOpen]);
+
+  function downloadQr() {
+    const canvas = qrRef.current;
+    if (!canvas) return;
+    const a = document.createElement("a");
+    a.href = canvas.toDataURL("image/png");
+    a.download = `tracking-qr-${id ?? "project"}.png`;
+    a.click();
   }
 
   async function generate() {
@@ -151,11 +239,16 @@ export function Project() {
         <Badge variant={verdictVariant(rollup.verdict)}>{rollup.verdict}</Badge>
         <Badge variant={stageVariant(project.status)}>{STATUS_LABEL[project.status] ?? project.status}</Badge>
         <div className="ml-auto flex gap-2">
-          <Link to={`/projects/${id}/checklist`}>
-            <Button variant="outline" size="sm">
-              Checklist
-            </Button>
-          </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setShareMsg(null);
+              setShareOpen(true);
+            }}
+          >
+            Tracking link
+          </Button>
           {isAdmin && !approved && (
             <Button variant="accent" size="sm" onClick={() => void review("approve")} disabled={reviewing}>
               Approve &amp; sign
@@ -364,6 +457,75 @@ export function Project() {
             />
           </CardContent>
         </Card>
+      )}
+
+      {shareOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShareOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Manufacturer tracking link"
+            className="flex max-h-[90vh] w-full max-w-lg flex-col gap-3 overflow-y-auto rounded-lg border border-border bg-card p-5 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-bold tracking-tight">Manufacturer tracking link</h2>
+              <button
+                type="button"
+                onClick={() => setShareOpen(false)}
+                aria-label="Close tracking link dialog"
+                className="ml-auto rounded-md px-2 py-1 text-lg leading-none text-muted-foreground hover:bg-muted"
+              >
+                ×
+              </button>
+            </div>
+            {shareUrl ? (
+              <div className="flex flex-col items-center gap-3">
+                <code className="w-full break-all rounded-md border border-border bg-muted px-3 py-2 text-xs">
+                  {shareUrl}
+                </code>
+                <canvas ref={qrRef} role="img" aria-label="Tracking link QR code" className="rounded-md border border-border" />
+                {qrError ? (
+                  <p className="text-xs text-reject">{qrError}</p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={downloadQr}
+                    className="text-xs font-semibold text-primary hover:underline"
+                  >
+                    Download QR PNG
+                  </button>
+                )}
+                {share?.created_at && (
+                  <p className="text-xs text-muted-foreground">
+                    Created {String(share.created_at).slice(0, 10)}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No active link. Create one to share with the manufacturer.</p>
+            )}
+            {shareMsg && <p className="text-sm text-muted-foreground">{shareMsg}</p>}
+            <div className="flex flex-wrap gap-2">
+              {shareUrl && (
+                <Button variant="outline" size="sm" onClick={() => void copyShareLink(shareUrl)} disabled={shareBusy}>
+                  Copy link
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={createShareLink} disabled={shareBusy}>
+                {shareBusy ? "Working…" : shareUrl ? "Regenerate" : "Create link"}
+              </Button>
+              {shareUrl && (
+                <Button variant="outline" size="sm" onClick={revokeShareLink} disabled={shareBusy}>
+                  Revoke
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

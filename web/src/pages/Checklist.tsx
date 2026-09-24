@@ -17,7 +17,9 @@ import { cn } from "../lib/utils";
 const APPLICABLE: Array<[string, string]> = [
   ["existent", "Applicable"],
   ["non_existent", "Not present"],
-  ["not_applicable", "Not applicable"],
+  // Value must stay inside the backend allow-list (existent/non_existent/na)
+  // enforced by the API and the project_checklist_result CHECK constraint.
+  ["na", "Not applicable"],
 ];
 
 const STATUS: Array<[string, string]> = [
@@ -41,6 +43,7 @@ export function Checklist() {
   const { id } = useParams();
   const [items, setItems] = useState<Item[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
 
   useEffect(() => {
@@ -59,6 +62,7 @@ export function Checklist() {
   }, [id]);
 
   async function persist(item: Item) {
+    setSaveError(null);
     try {
       await api.put(`/projects/${id}/checklist`, {
         results: [
@@ -71,9 +75,11 @@ export function Checklist() {
           },
         ],
       });
-    } catch {
-      // Toast equivalent: keep quiet but do not lose the local edit; the next
-      // change retries. A failed save must never roll back what was typed.
+    } catch (err) {
+      // Surface the failure: a rejected save (e.g. an admin account, which is
+      // read-only on report data, or a project already approved) must be
+      // visible, otherwise the edit silently reverts on the next refresh.
+      setSaveError(err instanceof ApiError ? err.message : "Could not save this change.");
     }
   }
 
@@ -121,6 +127,11 @@ export function Checklist() {
         {items.length} clauses apply under this standard. The list comes from the database, so a
         revision of the standard changes the seed data rather than the software.
       </p>
+      {saveError && (
+        <p className="rounded-md border border-reject/40 bg-reject-wash px-4 py-3 text-sm text-reject" role="alert">
+          Could not save: {saveError}
+        </p>
+      )}
 
       <Card>
         <CardContent className="flex flex-col gap-2 pt-5">

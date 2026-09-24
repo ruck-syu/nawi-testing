@@ -13,7 +13,7 @@ import {
   listReports,
   renderProjectReport,
 } from '../services/report.ts';
-import { requireTechnicianEditableProject } from '../services/review.ts';
+import { requireEditableProject } from '../services/review.ts';
 
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const EXTENSIONS: Record<string, string> = {
@@ -142,7 +142,7 @@ export function registerReportRoutes(router: Router): void {
     '/api/projects/:id/attachments',
     async (ctx) => {
       const projectId = Number(ctx.params.id);
-      await requireTechnicianEditableProject(projectId, ctx);
+      await requireEditableProject(projectId, ctx);
       if (ctx.files.length === 0) throw badRequest('No file uploaded');
 
       fs.mkdirSync(config.uploadsDir, { recursive: true });
@@ -218,7 +218,7 @@ export function registerReportRoutes(router: Router): void {
       const id = num(ctx.params.id, 'id');
       const attachment = await get<{ project_id: number }>('SELECT project_id FROM attachment WHERE id = ?', [id]);
       if (!attachment) throw notFound(`Attachment ${id} not found`);
-      await requireTechnicianEditableProject(attachment.project_id, ctx);
+      await requireEditableProject(attachment.project_id, ctx);
       const { changes } = await run('UPDATE attachment SET caption = ? WHERE id = ?', [
         strOrNull(ctx.body.caption),
         id,
@@ -238,7 +238,7 @@ export function registerReportRoutes(router: Router): void {
         [id],
       );
       if (!attachment) throw notFound(`Attachment ${id} not found`);
-      await requireTechnicianEditableProject(attachment.project_id, ctx);
+      await requireEditableProject(attachment.project_id, ctx);
       await run('DELETE FROM attachment WHERE id = ?', [id]);
       try {
         fs.rmSync(path.join(config.uploadsDir, attachment.file_path), { force: true });

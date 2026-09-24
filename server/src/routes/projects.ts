@@ -28,7 +28,8 @@ import {
 } from '../http.ts';
 import { computeN, generateReferenceWeights, validateInstrumentSpecInput, type AccuracyClass } from '../domain.ts';
 import { projectRollup, toInstrumentSpec, getModel, type ModelRow } from './../services/evaluation.ts';
-import { requireProjectStage, requireTechnicianEditableProject } from '../services/review.ts';
+import { requireProjectStage, requireEditableProject } from '../services/review.ts';
+import { createShare, getActiveShare, revokeShare } from '../services/share.ts';
 
 const ACCURACY_CLASSES = ['I', 'II', 'III', 'IIII'] as const;
 const PAN_SHAPES = ['rectangular_4corner', 'triangular_3point'] as const;
@@ -513,7 +514,7 @@ export function registerProjectRoutes(router: Router): void {
     '/api/projects/:id',
     async (ctx) => {
       const projectId = Number(ctx.params.id);
-      await requireTechnicianEditableProject(projectId, ctx);
+      await requireEditableProject(projectId, ctx);
 
       const requiredFields = ['task_no', 'report_no', 'standard_version'] as const;
 
@@ -644,6 +645,40 @@ export function registerProjectRoutes(router: Router): void {
   );
 
   // -------------------------------------------------------------------------
+  // Manufacturer share link — single active token per project
+  // -------------------------------------------------------------------------
+
+  router.get(
+    '/api/projects/:id/share',
+    async (ctx) => {
+      const projectId = Number(ctx.params.id);
+      await requireProject(projectId);
+      return { share: await getActiveShare(projectId) };
+    },
+    [],
+  );
+
+  router.post(
+    '/api/projects/:id/share',
+    async (ctx) => {
+      const projectId = Number(ctx.params.id);
+      await requireProject(projectId);
+      return { share: await createShare(projectId, ctx.user?.sub ?? null) };
+    },
+    [],
+  );
+
+  router.delete(
+    '/api/projects/:id/share',
+    async (ctx) => {
+      const projectId = Number(ctx.params.id);
+      await requireProject(projectId);
+      return { revoked: await revokeShare(projectId) };
+    },
+    [],
+  );
+
+  // -------------------------------------------------------------------------
   // Models
   // -------------------------------------------------------------------------
 
@@ -651,7 +686,7 @@ export function registerProjectRoutes(router: Router): void {
     '/api/projects/:id/models',
     async (ctx) => {
       const projectId = Number(ctx.params.id);
-      await requireTechnicianEditableProject(projectId, ctx);
+      await requireEditableProject(projectId, ctx);
 
       const familyId = numOrNull(ctx.body.family_id);
       const family = familyId
@@ -696,7 +731,7 @@ export function registerProjectRoutes(router: Router): void {
         'SELECT f.project_id FROM instrument_family f WHERE f.id = ?', [model.family_id],
       );
       if (!project) throw notFound(`Project for model ${modelId} not found`);
-      await requireTechnicianEditableProject(project.project_id, ctx);
+      await requireEditableProject(project.project_id, ctx);
       const fields = readModelFields(ctx.body);
       await run(
         `UPDATE instrument_model SET ${Object.keys(fields).map((c) => `${c} = ?`).join(', ')}
@@ -717,7 +752,7 @@ export function registerProjectRoutes(router: Router): void {
         'SELECT f.project_id FROM instrument_family f WHERE f.id = ?', [model.family_id],
       );
       if (!project) throw notFound(`Project for model ${modelId} not found`);
-      await requireTechnicianEditableProject(project.project_id, ctx);
+      await requireEditableProject(project.project_id, ctx);
       const weights = readWeightList(ctx.body.referenceWeights);
       return await transaction(async () => {
         await replaceReferenceWeights(modelId, weights);
@@ -815,7 +850,7 @@ export function registerProjectRoutes(router: Router): void {
     '/api/projects/:id/checklist',
     async (ctx) => {
       const projectId = Number(ctx.params.id);
-      await requireTechnicianEditableProject(projectId, ctx);
+      await requireEditableProject(projectId, ctx);
 
       const results = Array.isArray(ctx.body.results) ? ctx.body.results : [];
       if (results.length === 0) throw badRequest('results must be a non-empty array');

@@ -39,10 +39,7 @@ interface Run {
   operatorName?: string;
   datePerformed?: string;
   updatedAt?: string;
-  temperatureC?: number;
   poh?: PohAnchor | null;
-  humidityPct?: number;
-  testLoad?: number;
 }
 
 function verdictVariant(v: string) {
@@ -236,7 +233,6 @@ export function TestHistory() {
               <TableHead>Test &amp; ref</TableHead>
               <TableHead>Instrument &amp; task</TableHead>
                 <TableHead>Operator &amp; date</TableHead>
-                <TableHead>Conditions</TableHead>
                 <TableHead>Proof of history</TableHead>
                 <TableHead className="w-28" />
             </TableRow>
@@ -244,7 +240,7 @@ export function TestHistory() {
           <TableBody>
             {visible.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7}>
+                <TableCell colSpan={6}>
                   <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
                     <SearchX className="h-4 w-4" aria-hidden="true" />
                     {total === 0
@@ -255,14 +251,6 @@ export function TestHistory() {
               </TableRow>
             )}
             {visible.map((r, i) => {
-              const conditions =
-                [
-                  r.temperatureC !== null && r.temperatureC !== undefined ? `${r.temperatureC} °C` : null,
-                  r.humidityPct !== null && r.humidityPct !== undefined ? `${r.humidityPct} %RH` : null,
-                  r.testLoad !== null && r.testLoad !== undefined ? `Load: ${r.testLoad}g` : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ") || "—";
               return (
                 <TableRow key={`${r.projectId}:${r.modelId}:${r.testTypeCode}:${i}`} className={cn(r.verdict === "fail" && "bg-reject-wash/40")}>
                   <TableCell>
@@ -291,7 +279,6 @@ export function TestHistory() {
                     <div>{r.operatorName || <span className="text-muted-foreground">Unassigned</span>}</div>
                     <div className="text-xs text-muted-foreground">{formatWhen(r.datePerformed || r.updatedAt)}</div>
                   </TableCell>
-                  <TableCell className="tnum text-sm text-muted-foreground">{conditions}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {r.poh ? (
                       <div className="flex flex-col items-start gap-1">
