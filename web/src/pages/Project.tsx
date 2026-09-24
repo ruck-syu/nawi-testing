@@ -482,11 +482,6 @@ export function Project() {
                 ×
               </button>
             </div>
-            <p className="text-sm text-muted-foreground">
-              One link per examination. The manufacturer opens it without a login to see the
-              current status, examination dates and per-test verdicts. No report file, checklist
-              or contact details are exposed.
-            </p>
             {shareUrl ? (
               <div className="flex flex-col items-center gap-3">
                 <code className="w-full break-all rounded-md border border-border bg-muted px-3 py-2 text-xs">
