@@ -14,14 +14,14 @@ export async function requireProjectStage(projectId: number): Promise<ProjectSta
   return project;
 }
 
-/** Report data is technician-owned until the admin approves it. */
-export async function requireTechnicianEditableProject(projectId: number, ctx: Ctx): Promise<ProjectStageRow> {
+/** Report data is lab-editable (technician or admin) until the admin approves it. */
+export async function requireEditableProject(projectId: number, ctx: Ctx): Promise<ProjectStageRow> {
   const project = await requireProjectStage(projectId);
+  if (!ctx.user) {
+    throw forbidden('Authentication required.');
+  }
   if (project.status === 'approved') {
     throw forbidden('Approved reports are read-only.');
-  }
-  if (ctx.user?.role !== 'technician') {
-    throw forbidden('Only technicians may edit report data.');
   }
   return project;
 }

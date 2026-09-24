@@ -10,6 +10,7 @@ import { Model } from "./pages/Model";
 import { Reports } from "./pages/Reports";
 import { Profile } from "./pages/Profile";
 import { TestHistory } from "./pages/TestHistory";
+import { Track } from "./pages/Track";
 import { session, onUnauthorized } from "./lib/api";
 import { useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
@@ -51,6 +52,8 @@ export function App() {
     <HashRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        {/* Public manufacturer tracking page: no session, no app shell. */}
+        <Route path="/track/:token" element={<Track />} />
         <Route
           path="/projects"
           element={
