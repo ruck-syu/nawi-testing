@@ -190,10 +190,9 @@ export function Project() {
       const res = (await api.post(`/projects/${id}/reports`, { format: genFormat })) as {
         report?: { url?: string };
         url?: string;
-        message?: string;
       };
       const url = fileUrl(res.report?.url ?? res.url);
-      setNotice(res.message ?? "Report generated.");
+      setNotice("Report generated.");
       if (url) window.open(url, "_blank", "noopener");
     } catch (err) {
       setNotice(err instanceof ApiError ? err.message : "Generation failed.");

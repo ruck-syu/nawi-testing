@@ -148,6 +148,13 @@ td.fail { font-weight:700; text-decoration:underline; }
 .remarklines .rl { border-bottom:.5pt solid var(--ink); min-height:5mm; }
 
 .cover-head { border-bottom:2pt solid var(--ink); padding-bottom:3mm; margin-bottom:5mm; }
+/* Official masthead: double rule on top, thin rule below, sized hierarchy. */
+.govt-head { text-align:center; margin:0 0 3mm; padding:2.5mm 0; border-bottom:1pt solid var(--ink); }
+.govt-head p { margin:0; line-height:1.6; }
+.govt-head .l1 { font-size:14pt; font-weight:700; letter-spacing:2.5pt; }
+.govt-head .l2 { font-size:9.5pt; font-weight:700; }
+.govt-head .l3 { font-size:9.5pt; font-weight:700; letter-spacing:1pt; }
+.govt-head .l4 { font-size:12pt; font-weight:700; letter-spacing:1.5pt; margin-top:1mm; }
 .resultbox { border:1pt solid var(--ink); padding:3mm; text-align:center; margin:5mm 0; }
 .resultbox .big { font-size:16pt; font-weight:700; letter-spacing:1pt; }
 
@@ -769,6 +776,12 @@ function coverSheet(ctx: ProjectContext, model: ReportModel, page: number, pages
   return `<section class="sheet">
     ${docMeta(ctx, 'Report identification', page, pages)}
     <div class="cover-head">
+      <div class="govt-head">
+        <p class="l1">GOVERNMENT OF INDIA</p>
+        <p class="l2">MINISTRY OF CONSUMER AFFAIRS, FOOD &amp; PUBLIC DISTRIBUTION</p>
+        <p class="l3">DEPARTMENT OF CONSUMER AFFAIRS</p>
+        <p class="l4">LEGAL METROLOGY LABORATORY</p>
+      </div>
       <p class="small" style="letter-spacing:1.5pt;text-transform:uppercase;margin:0 0 2mm">OIML R 76-2 &middot; Type Examination Test Report</p>
       <h1>Non-Automatic Weighing Instrument</h1>
       <p class="small">Conducted in accordance with ${esc(ctx.project.standard_version)} / OIML R76</p>
