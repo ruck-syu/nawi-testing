@@ -40,11 +40,6 @@ export function registerReportRoutes(router: Router): void {
       return {
         report,
         pdfFallback,
-        // Surfaced so the UI can explain the fallback rather than silently handing back
-        // an HTML file when the user asked for a PDF.
-        message: pdfFallback
-          ? 'Puppeteer is not installed, so a print-styled HTML report was produced. Open it and use your browser’s "Save as PDF" — the layout is already paginated for A4.'
-          : null,
       };
     },
     [],

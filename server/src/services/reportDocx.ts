@@ -156,9 +156,10 @@ type DocxElement = Paragraph | Table;
 
 function p(
   content: string,
-  opts: { bold?: boolean; size?: number; italic?: boolean; color?: string; font?: string } = {},
+  opts: { bold?: boolean; size?: number; italic?: boolean; color?: string; font?: string; align?: (typeof AlignmentType)[keyof typeof AlignmentType] } = {},
 ): Paragraph {
   return new Paragraph({
+    alignment: opts.align,
     children: [
       new TextRun({
         text: content,
@@ -732,6 +733,13 @@ function coverSection(model: ReportModel): DocxElement[] {
     Math.round(CONTENT_TWIPS * p),
   );
   return [
+    // Official masthead: sized hierarchy (16pt / 11pt / 11pt / 13pt), centred,
+    // with a horizontal rule below the laboratory line mirroring the HTML header.
+    p('GOVERNMENT OF INDIA', { bold: true, size: 32, align: AlignmentType.CENTER }),
+    p('MINISTRY OF CONSUMER AFFAIRS, FOOD & PUBLIC DISTRIBUTION', { bold: true, size: 22, align: AlignmentType.CENTER }),
+    p('DEPARTMENT OF CONSUMER AFFAIRS', { bold: true, size: 22, align: AlignmentType.CENTER }),
+    p('LEGAL METROLOGY LABORATORY', { bold: true, size: 26, align: AlignmentType.CENTER }),
+    new Paragraph({ thematicBreak: true }),
     p('OIML R 76-2 · Type Examination Test Report', { size: 20 }),
     heading(HeadingLevel.HEADING_1, 'Non-Automatic Weighing Instrument'),
     p(`Conducted in accordance with ${project.standard_version} / OIML R76.`),
