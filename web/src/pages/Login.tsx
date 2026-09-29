@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
-import { Scale, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 import { api, session, ApiError } from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input, Label } from "../components/ui/input";
+import logo from "../assets/logo.svg";
 
 export function Login() {
   const navigate = useNavigate();
@@ -38,9 +39,11 @@ export function Login() {
       <div className="flex flex-1 items-center justify-center px-4 py-10">
         <div className="w-full max-w-md">
           <div className="mb-6 text-center text-white">
-            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-sm bg-steel-800 ring-1 ring-amber-glow/60">
-              <Scale className="h-6 w-6 text-amber-glow" aria-hidden="true" />
-            </div>
+            <img
+              src={logo}
+              alt="Legal Metrology Division logo"
+              className="mx-auto mb-3 h-14 w-14 rounded-sm ring-1 ring-amber-glow/60"
+            />
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-glow">
               Legal Metrology Division
             </p>
