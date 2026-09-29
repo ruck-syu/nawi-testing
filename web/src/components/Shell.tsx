@@ -1,8 +1,9 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { Scale, FlaskConical, FileText, LayoutDashboard, Plus, LogOut, CircleUserRound } from "lucide-react";
+import { FlaskConical, FileText, LayoutDashboard, Plus, LogOut, CircleUserRound } from "lucide-react";
 import { cn } from "../lib/utils";
 import { session } from "../lib/api";
 import { Button } from "./ui/button";
+import logo from "../assets/logo.svg";
 
 const NAV = [
   { to: "/projects", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -19,9 +20,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
       {/* Masthead */}
       <header className="bg-steel-950 text-white">
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm bg-steel-800 ring-1 ring-amber-glow/60">
-            <Scale className="h-5 w-5 text-amber-glow" aria-hidden="true" />
-          </div>
+          <img
+            src={logo}
+            alt="Legal Metrology Division logo"
+            className="h-10 w-10 shrink-0 rounded-sm ring-1 ring-amber-glow/60"
+          />
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-glow">
               Legal Metrology Division
