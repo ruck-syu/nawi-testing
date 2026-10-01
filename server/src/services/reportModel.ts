@@ -74,6 +74,16 @@ export interface ReportModel {
   checklist: ChecklistModelRow[];
   models: ModelSection[];
   signature: SignatureModel | null;
+  verification?: ReportVerification;
+}
+
+/** Verification block for a generated report, if verification was issued. */
+export interface ReportVerification {
+  token: string;
+  qrDataUrl: string;
+  qrBuffer: Buffer;
+  integrityHash: string;
+  verifyUrl: string;
 }
 
 export interface BuildOptions {

@@ -49,6 +49,7 @@ import type {
   ChecklistModelRow,
   ModelSection,
   ReportModel,
+  ReportVerification,
   SignatureModel,
 } from './reportModel.ts';
 import type { IReportRenderer, RenderOptions } from './report.ts';
@@ -1107,6 +1108,57 @@ function signatureCell(name: string, title: string, date: string, imagePath?: st
   });
 }
 
+/**
+ * Verification block: a bordered two-cell table pairing the QR code with the
+ * issuing authority and integrity details — mirroring the HTML `.verify` block.
+ * Rendered only for approved projects, where `model.verification` exists.
+ */
+function verificationTable(verification: ReportVerification): Table {
+  const line = (content: string, opts: { bold?: boolean; size?: number } = {}): Paragraph =>
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: content,
+          font: REPORT_BASE_FONT,
+          size: opts.size ?? REPORT_BASE_SIZE_HALF_POINTS,
+          bold: opts.bold || undefined,
+        }),
+      ],
+    });
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [
+      new TableRow({
+        cantSplit: true,
+        children: [
+          new TableCell({
+            width: { size: 2600, type: WidthType.DXA },
+            children: [
+              new Paragraph({
+                children: [
+                  new ImageRun({
+                    data: verification.qrBuffer,
+                    transformation: { width: 150, height: 150 },
+                    type: 'png',
+                  }),
+                ],
+              }),
+            ],
+          }),
+          new TableCell({
+            children: [
+              line('Scan QR on phone to verify report integrity', { bold: true }),
+              line('OR open the link below in your browser'),
+              line(verification.verifyUrl, { size: 18 }),
+              line('Government of India — Legal Metrology Division'),
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+}
+
 function conclusionSection(
   model: ReportModel,
   signature: SignatureModel | null,
@@ -1162,6 +1214,7 @@ function conclusionSection(
         }),
       ],
     }),
+    ...(model.verification ? [gap(), verificationTable(model.verification)] : []),
     p(
       `Report ${project.report_no} · generated ${model.generatedAt} · ${rollup.testCount} tests evaluated. ` +
         `This document was produced from the recorded measurements; the pass/fail decisions were computed from ${project.standard_version} rather than entered by an operator.`,
