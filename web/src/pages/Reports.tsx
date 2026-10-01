@@ -186,6 +186,7 @@ export function Reports() {
           >
             <option value="pdf">PDF</option>
             <option value="docx">DOCX (Word)</option>
+            <option value="xlsx">Excel</option>
           </select>
           <Button variant="accent" size="sm" onClick={generate} disabled={generating || !generateFor}>
             {generating ? "Generating…" : "Generate"}
@@ -279,7 +280,7 @@ export function Reports() {
             {visible.map((r) => {
               const isLatest =
                 reports.findIndex((o) => o.project_id === r.project_id) === reports.indexOf(r);
-              const isDownload = ["pdf", "docx"].includes(r.format ?? "html");
+              const isDownload = ["pdf", "docx", "xlsx"].includes(r.format ?? "html");
               const isDocx = (r.format ?? "html") === "docx";
               return (
                 <TableRow key={r.id} className={cn(r.overall_verdict === "fail" && "bg-reject-wash/40")}>

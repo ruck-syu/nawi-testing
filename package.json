@@ -33,6 +33,7 @@
     "clsx": "^2.1.1",
     "docx": "^9.7.1",
     "dotenv": "^17.4.2",
+    "exceljs": "^4.4.0",
     "lucide-react": "^1.40.0",
     "postgres": "^3.4.9",
     "qrcode": "^1.5.4",

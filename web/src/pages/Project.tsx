@@ -266,6 +266,7 @@ export function Project() {
           >
             <option value="pdf">PDF</option>
             <option value="docx">DOCX (Word)</option>
+            <option value="xlsx">Excel</option>
           </select>
           <Button variant="accent" size="sm" onClick={generate} disabled={generating}>
             {generating ? "Generating…" : "Generate report"}
