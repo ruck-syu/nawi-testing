@@ -14,6 +14,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
+import QRCode from 'qrcode';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { all, get, run } from '../db/index.ts';
@@ -99,6 +101,46 @@ export async function generateReport(
   const project = model.project;
   const rollup = model.rollup;
 
+  let verificationToken: string | null = null;
+  let integrityHash: string | null = null;
+
+  if (project.status === 'approved') {
+    const token = crypto.randomBytes(24).toString('base64url');
+    const projectWithApproval = project as typeof project & {
+      approved_by?: number | null;
+      approved_at?: string | null;
+    };
+    const payload = {
+      reportNo: project.report_no,
+      taskNo: project.task_no,
+      overallVerdict: rollup.verdict,
+      testCount: rollup.testCount,
+      passCount: rollup.passCount,
+      failCount: rollup.failCount,
+      approvedBy: projectWithApproval.approved_by ?? null,
+      approvedAt: projectWithApproval.approved_at ?? null,
+      generatedAt: model.generatedAt,
+    };
+    const integrityHashValue = crypto
+      .createHash('sha256')
+      .update(JSON.stringify(payload))
+      .digest('hex');
+    const verifyUrl = `${config.siteUrl}/#/verify/${token}`;
+    const [qrDataUrl, qrBuffer] = await Promise.all([
+      QRCode.toDataURL(verifyUrl, { width: 200, margin: 1 }),
+      QRCode.toBuffer(verifyUrl, { width: 200, margin: 1 }),
+    ]);
+    model.verification = {
+      token,
+      qrDataUrl,
+      qrBuffer,
+      integrityHash: integrityHashValue,
+      verifyUrl,
+    };
+    verificationToken = token;
+    integrityHash = integrityHashValue;
+  }
+
   fs.mkdirSync(config.reportsDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const base = `${slug(project.report_no)}_${stamp}`;
@@ -150,8 +192,9 @@ export async function generateReport(
   const { lastInsertRowid } = await run(
     `INSERT INTO generated_report
        (project_id, report_no, format, file_path, generated_by,
-        overall_verdict, test_count, pass_count, fail_count, print_signature)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        overall_verdict, test_count, pass_count, fail_count, print_signature,
+        verification_token, integrity_hash)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       projectId,
       project.report_no,
@@ -163,6 +206,8 @@ export async function generateReport(
       rollup.passCount,
       rollup.failCount,
       Boolean(model.signature),
+      verificationToken,
+      integrityHash,
     ],
   );
 

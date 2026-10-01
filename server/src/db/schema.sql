@@ -307,7 +307,9 @@ CREATE TABLE IF NOT EXISTS generated_report (
   fail_count      INTEGER,
   -- Whether the signature block printed on this generation. Part of the record
   -- because two generations of the same data may legitimately differ here.
-  print_signature BOOLEAN NOT NULL DEFAULT TRUE
+  print_signature BOOLEAN NOT NULL DEFAULT TRUE,
+  verification_token TEXT UNIQUE,
+  integrity_hash TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_report_project ON generated_report(project_id);

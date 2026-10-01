@@ -62,6 +62,7 @@ export async function applyMigrations(): Promise<void> {
   await migrateSignatureUserLink();
   await migrateMobileUploadSession();
   await migrateReportFormatXlsx();
+  await migrateReportVerification();
 }
 
 /** Manufacturer status link table for databases created before it existed. */
@@ -276,5 +277,17 @@ async function migrateSignatureUserLink(): Promise<void> {
        SET signed_by_user_id = u.id
       FROM "user" u
      WHERE s.signed_by_user_id IS NULL AND u.name = s.signed_by_name;
+  `);
+}
+
+/**
+ * Verification columns on `generated_report`. Fresh databases get both from
+ * `schema.sql`; this block backfills databases created before verification
+ * existed. `IF NOT EXISTS` makes re-running a no-op on either generation.
+ */
+async function migrateReportVerification(): Promise<void> {
+  await getSql().unsafe(`
+    ALTER TABLE generated_report ADD COLUMN IF NOT EXISTS verification_token TEXT UNIQUE;
+    ALTER TABLE generated_report ADD COLUMN IF NOT EXISTS integrity_hash TEXT;
   `);
 }
