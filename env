@@ -1,2 +1,0 @@
-DATABASE_URL=postgresql://postgres.ljpiidikwdokydybmxwr:oiml75%40sih2k26@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres
-JWT_SECRET=680c992a87417a235aec22f901c8b6e5ce7953400ce33a72b67f7a4f472a07ec
