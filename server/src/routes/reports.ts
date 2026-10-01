@@ -32,7 +32,7 @@ export function registerReportRoutes(router: Router): void {
     '/api/projects/:id/reports',
     async (ctx) => {
       const projectId = Number(ctx.params.id);
-      const format = oneOf(ctx.body.format, ['html', 'pdf', 'docx'] as const, 'format', 'html');
+      const format = oneOf(ctx.body.format, ['html', 'pdf', 'docx', 'xlsx'] as const, 'format', 'html');
       const { report, pdfFallback } = await generateReport(projectId, {
         format,
         generatedBy: ctx.user?.name ?? undefined,
