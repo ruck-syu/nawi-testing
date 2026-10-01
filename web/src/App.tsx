@@ -11,6 +11,7 @@ import { Reports } from "./pages/Reports";
 import { Profile } from "./pages/Profile";
 import { TestHistory } from "./pages/TestHistory";
 import { Track } from "./pages/Track";
+import { MobileUpload } from "./pages/MobileUpload";
 import { session, onUnauthorized } from "./lib/api";
 import { useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
@@ -54,6 +55,8 @@ export function App() {
         <Route path="/login" element={<Login />} />
         {/* Public manufacturer tracking page: no session, no app shell. */}
         <Route path="/track/:token" element={<Track />} />
+        {/* Public mobile photo-upload page: no session, no app shell. The token is the credential. */}
+        <Route path="/m/:token" element={<MobileUpload />} />
         <Route
           path="/projects"
           element={

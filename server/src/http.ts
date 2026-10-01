@@ -216,6 +216,7 @@ const MIME: Record<string, string> = {
   '.webp': 'image/webp',
   '.pdf': 'application/pdf',
   '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 };
 
 /**
