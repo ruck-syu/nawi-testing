@@ -96,7 +96,7 @@ export function Verify() {
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-4 p-6">
       <header className="border-b-2 border-primary pb-4 text-center">
-        <p className="text-lg font-bold tracking-wide">भारत सरकार / Government of India</p>
+        <p className="text-lg font-bold tracking-wide">Government of India</p>
         <p className="text-sm font-semibold">Ministry of Consumer Affairs, Food &amp; Public Distribution</p>
         <p className="text-sm font-semibold tracking-wide">Legal Metrology Division</p>
       </header>
