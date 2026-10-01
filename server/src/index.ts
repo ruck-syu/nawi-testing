@@ -17,6 +17,7 @@ import { registerProjectRoutes } from './routes/projects.ts';
 import { registerTestRoutes } from './routes/tests.ts';
 import { registerReportRoutes } from './routes/reports.ts';
 import { registerShareRoutes } from './routes/share.ts';
+import { registerMobileUploadRoutes } from './routes/mobileUpload.ts';
 import { registerUserRoutes } from './routes/users.ts';
 
 const router = new Router();
@@ -25,6 +26,7 @@ registerProjectRoutes(router);
 registerTestRoutes(router);
 registerReportRoutes(router);
 registerShareRoutes(router);
+registerMobileUploadRoutes(router);
 registerUserRoutes(router);
 
 const webDistDir = path.join(ROOT, 'web', 'dist');
