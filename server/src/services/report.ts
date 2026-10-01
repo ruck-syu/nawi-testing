@@ -22,13 +22,14 @@ import { notFound } from '../http.ts';
 import { buildReportModel, type ReportModel } from './reportModel.ts';
 import { htmlRenderer } from './reportHtml.ts';
 import { docxRenderer } from './reportDocx.ts';
+import { xlsxRenderer } from './reportXlsx.ts';
 
 // ---------------------------------------------------------------------------
 // Renderer contract
 // ---------------------------------------------------------------------------
 
 /** Formats with a dedicated renderer. `pdf` is not here: it is print HTML run through Puppeteer. */
-export type RendererFormat = 'html' | 'docx';
+export type RendererFormat = 'html' | 'docx' | 'xlsx';
 
 export interface RenderOptions {
   /** Adds an on-screen print toolbar. Omitted for Puppeteer, which prints directly. */
@@ -64,7 +65,7 @@ export async function renderProjectReport(
 
 export interface GeneratedReport {
   id: number;
-  format: 'html' | 'pdf' | 'docx';
+  format: 'html' | 'pdf' | 'docx' | 'xlsx';
   file_path: string;
   generated_at: string;
   overall_verdict: string | null;
@@ -89,7 +90,7 @@ function slug(value: string): string {
  */
 export async function generateReport(
   projectId: number,
-  options: { format?: 'html' | 'pdf' | 'docx'; generatedBy?: string } = {},
+  options: { format?: 'html' | 'pdf' | 'docx' | 'xlsx'; generatedBy?: string } = {},
 ): Promise<{ report: GeneratedReport; pdfFallback: boolean }> {
   const format = options.format ?? 'html';
   // The model is built once and shared: persistence reads project/rollup from it and
@@ -103,7 +104,7 @@ export async function generateReport(
   const base = `${slug(project.report_no)}_${stamp}`;
 
   let filePath: string;
-  let actualFormat: 'html' | 'pdf' | 'docx' = 'html';
+  let actualFormat: 'html' | 'pdf' | 'docx' | 'xlsx' = 'html';
   let pdfFallback = false;
 
   if (format === 'docx') {
@@ -112,6 +113,12 @@ export async function generateReport(
     filePath = path.join(config.reportsDir, `${base}.docx`);
     fs.writeFileSync(filePath, buffer);
     actualFormat = 'docx';
+  } else if (format === 'xlsx') {
+    // The spreadsheet export: only the .xlsx is written, no HTML sidecar.
+    const buffer = await xlsxRenderer.render(model);
+    filePath = path.join(config.reportsDir, `${base}.xlsx`);
+    fs.writeFileSync(filePath, buffer);
+    actualFormat = 'xlsx';
   } else {
     const html = htmlRenderer.render(model, {
       // Always interactive: real PDFs print through Puppeteer's print media, where
