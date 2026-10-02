@@ -7,10 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Input, Label } from "../components/ui/input";
 import logo from "../assets/logo.svg";
 
+const ADMIN_CREDS = { email: "admin@delta.test", password: "admin123" };
+
 export function Login() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("tech@delta.test");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState(ADMIN_CREDS.email);
+  const [password, setPassword] = useState(ADMIN_CREDS.password);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -93,9 +95,26 @@ export function Login() {
                   {busy ? "Signing in…" : "Sign in"}
                 </Button>
               </form>
-              <div className="mt-4 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-                Demo accounts — admin: <span className="font-mono">admin@delta.test / admin123</span>
-                {" · "}technician: <span className="font-mono">tech@delta.test / tech123</span>
+              <div className="mt-4 p-3 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-600 space-y-2">
+                <div className="font-semibold text-slate-700">Demo Credentials</div>
+                <div className="border-t border-slate-200 pt-1.5">
+                  <div className="font-medium text-slate-700">Admin (Signatory)</div>
+                  <div>
+                    Email: <span className="font-mono">admin@delta.test</span>
+                  </div>
+                  <div>
+                    Password: <span className="font-mono">admin123</span>
+                  </div>
+                </div>
+                <div className="border-t border-slate-200 pt-1.5">
+                  <div className="font-medium text-slate-700">Technician</div>
+                  <div>
+                    Email: <span className="font-mono">tech@delta.test</span>
+                  </div>
+                  <div>
+                    Password: <span className="font-mono">tech123</span>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
