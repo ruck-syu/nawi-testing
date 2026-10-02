@@ -73,6 +73,23 @@ export function Conditions({
               </Field>
             );
           }
+          if (spec.type === "text") {
+            return (
+              <Field key={name} label={spec.label} hint={spec.hint}>
+                <Input
+                  type="text"
+                  defaultValue={initial}
+                  placeholder={spec.placeholder}
+                  onBlur={(e) => {
+                    if (!unchanged(e.target.value)) commit(e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                  }}
+                />
+              </Field>
+            );
+          }
           return (
             <NumberField
               key={name}
