@@ -22,7 +22,6 @@ Thumbs.db
 # Environment and secrets
 .env
 .env.*
-env
 !.env.example
 
 # Agent memory & internal workflow notes

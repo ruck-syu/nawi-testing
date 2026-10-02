@@ -37,6 +37,9 @@ export const config = {
   /** Allowed UI origins for CORS; comma-separated when the UI has several homes. */
   clientOrigin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173',
 
+  /** Public base URL used for absolute links (e.g. verification URLs in PDFs). */
+  siteUrl: process.env.SITE_URL ?? 'http://127.0.0.1:4000',
+
   /**
    * MPE tolerance table selector. No default change: 'spec' reproduces the build-spec
    * bands (Class II 500/2000); 'oiml_r76' applies published OIML R76-1 Table 3
