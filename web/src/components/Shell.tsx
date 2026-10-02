@@ -1,5 +1,5 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { FlaskConical, FileText, LayoutDashboard, Plus, LogOut, CircleUserRound } from "lucide-react";
+import { FlaskConical, FileText, LayoutDashboard, Plus, LogOut, CircleUserRound, Scale } from "lucide-react";
 import { cn } from "../lib/utils";
 import { session } from "../lib/api";
 import { Button } from "./ui/button";
@@ -7,6 +7,7 @@ import logo from "../assets/logo.svg";
 
 const NAV = [
   { to: "/projects", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/instruments", label: "Instruments", icon: Scale, end: false },
   { to: "/test-history", label: "Test History", icon: FlaskConical, end: false },
   { to: "/reports", label: "Reports", icon: FileText, end: false },
 ];

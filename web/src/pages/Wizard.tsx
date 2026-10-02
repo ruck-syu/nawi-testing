@@ -284,6 +284,7 @@ function StepModel({
 
   return (
     <div className="flex flex-col gap-4">
+      <SpecReuse patchModel={patchModel} />
       <Card>
         <CardHeader>
           <CardTitle>Instrument model</CardTitle>
@@ -352,6 +353,117 @@ function StepModel({
         </Button>
       </div>
     </div>
+  );
+}
+/**
+ * Spec reuse: copy Max/Min/e/d, class, receptor and load-cell details from a
+ * previously examined instrument. The new model keeps its own name and serial;
+ * reference weights regenerate from the copied spec on Continue.
+ */
+function SpecReuse({ patchModel }: { patchModel: (key: string, value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<any[]>([]);
+  const [selected, setSelected] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const search = async () => {
+    setBusy(true);
+    setNote(null);
+    try {
+      const params = new URLSearchParams({ limit: "50" });
+      if (query.trim()) params.set("search", query.trim());
+      const data = (await api.get(`/models?${params}`)) as { models: any[] };
+      setResults(data.models ?? []);
+      if (data.models?.length > 0) setSelected(String(data.models[0].id));
+      if ((data.models ?? []).length === 0) setNote("No instruments match.");
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : "Search failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reuse = async () => {
+    if (!selected) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      const data = (await api.get(`/models/${selected}`)) as { model: Record<string, any> };
+      const m = data.model ?? {};
+      for (const key of [
+        "max_capacity",
+        "min_capacity",
+        "e_value",
+        "d_value",
+        "accuracy_class",
+        "fractional_factor_pi",
+        "pan_shape",
+        "load_cell_type",
+        "load_cell_manufacturer",
+      ]) {
+        if (m[key] !== null && m[key] !== undefined) patchModel(key, String(m[key]));
+      }
+      setNote(
+        `Spec copied from ${m.model_name ?? "instrument"}. Give the new model its own name and serial number.`
+      );
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : "Could not copy the spec.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent className="pt-5">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="text-sm font-semibold text-primary hover:underline"
+        >
+          {open ? "Hide" : "Reuse an existing instrument's spec"}
+        </button>
+        {open && (
+          <div className="mt-3 flex flex-col gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                placeholder="Model, family, task no., manufacturer…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void search();
+                }}
+              />
+              <Button variant="outline" size="sm" onClick={() => void search()} disabled={busy}>
+                {busy ? "Searching…" : "Search"}
+              </Button>
+            </div>
+            {results.length > 0 && (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <select
+                  aria-label="Pick an instrument to copy the spec from"
+                  value={selected}
+                  onChange={(e) => setSelected(e.target.value)}
+                  className="h-9 flex-1 rounded-md border border-border bg-input px-3 text-sm shadow-xs"
+                >
+                  {results.map((r: any) => (
+                    <option key={r.id} value={String(r.id)}>
+                      {r.model_name} · Max {r.max_capacity} · e {r.e_value} · {r.task_no}
+                    </option>
+                  ))}
+                </select>
+                <Button variant="accent" size="sm" onClick={() => void reuse()} disabled={busy || !selected}>
+                  Copy spec
+                </Button>
+              </div>
+            )}
+            {note && <p className="text-xs text-muted-foreground">{note}</p>}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

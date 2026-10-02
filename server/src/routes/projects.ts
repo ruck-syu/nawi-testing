@@ -713,8 +713,72 @@ export function registerProjectRoutes(router: Router): void {
     [],
   );
 
-  router.get('/api/models/:id', async (ctx) => {
-    const model = await getModel(Number(ctx.params.id));
+  /**
+   * Instrument registry: every model across all projects, newest first.
+   *
+   * Powers the Instruments tab and the wizard's "reuse an existing spec" picker,
+   * so repeat and family-variant examinations start from a recorded spec instead
+   * of a blank form. Search covers model, family, task/report numbers and
+   * manufacturer.
+   */
+  router.get(
+    '/api/models',
+    async (ctx) => {
+      const search = (ctx.query.get('search') ?? '').trim().toLowerCase();
+      const limit = Math.min(Math.max(Number(ctx.query.get('limit') ?? 100) || 100, 1), 200);
+      const where: string[] = [];
+      const params: unknown[] = [];
+      if (search) {
+        const like = `%${search}%`;
+        where.push(`(lower(m.model_name) LIKE ? OR lower(f.family_name) LIKE ?
+          OR lower(p.task_no) LIKE ? OR lower(p.report_no) LIKE ? OR lower(mfr.name) LIKE ?)`);
+        params.push(like, like, like, like, like);
+      }
+      const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+      const rows = await all<{
+        id: number;
+        model_name: string;
+        serial_no: string | null;
+        max_capacity: number;
+        min_capacity: number;
+        e_value: number;
+        d_value: number;
+        n_intervals: number;
+        accuracy_class: string;
+        pan_shape: string | null;
+        load_cell_type: string | null;
+        family_id: number;
+        family_name: string;
+        project_id: number;
+        task_no: string;
+        report_no: string;
+        standard_version: string;
+        project_status: string;
+        manufacturer_name: string;
+        run_count: number;
+      }>(
+        `SELECT m.id, m.model_name, m.serial_no, m.max_capacity, m.min_capacity,
+                m.e_value, m.d_value, m.n_intervals, m.accuracy_class, m.pan_shape,
+                m.load_cell_type,
+                f.id AS family_id, f.family_name, f.project_id,
+                p.task_no, p.report_no, p.standard_version, p.status AS project_status,
+                mfr.name AS manufacturer_name,
+                (SELECT count(*) FROM test_run tr WHERE tr.model_id = m.id) AS run_count
+           FROM instrument_model m
+           JOIN instrument_family f ON f.id = m.family_id
+           JOIN project p ON p.id = f.project_id
+           JOIN manufacturer mfr ON mfr.id = p.manufacturer_id
+          ${whereSql}
+          ORDER BY m.id DESC
+          LIMIT ?`,
+        [...params, limit],
+      );
+      return { models: rows };
+    },
+    [],
+  );
+
+  router.get('/api/models/:id', async (ctx) => {    const model = await getModel(Number(ctx.params.id));
     const context = await get<{ project_id: number; family_name: string }>(
       `SELECT f.project_id, f.family_name FROM instrument_family f WHERE f.id = ?`,
       [model.family_id],
