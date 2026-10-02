@@ -1,5 +1,5 @@
-import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { FlaskConical, FileText, LayoutDashboard, Plus, LogOut, CircleUserRound, ArrowLeft } from "lucide-react";
+import { Link, NavLink, useNavigate } from "react-router-dom";
+import { FlaskConical, FileText, LayoutDashboard, Plus, LogOut, CircleUserRound } from "lucide-react";
 import { cn } from "../lib/utils";
 import { session } from "../lib/api";
 import { Button } from "./ui/button";
@@ -13,9 +13,7 @@ const NAV = [
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
-  const location = useLocation();
   const user = session.user;
-  const showBack = location.pathname !== "/";
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -97,16 +95,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </nav>
 
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">
-        {showBack && (
-          <button
-            type="button"
-            onClick={() => window.history.back()}
-            className="mb-4 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Back
-          </button>
-        )}
         {children}
       </main>
 
