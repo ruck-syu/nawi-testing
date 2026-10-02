@@ -10,7 +10,7 @@ import { Model } from "./pages/Model";
 import { Reports } from "./pages/Reports";
 import { Profile } from "./pages/Profile";
 import { TestHistory } from "./pages/TestHistory";
-import { Track } from "./pages/Track";
+import { Instruments } from "./pages/Instruments";import { Track } from "./pages/Track";
 import { MobileUpload } from "./pages/MobileUpload";
 import { Verify } from "./pages/Verify";
 import { session, onUnauthorized } from "./lib/api";
@@ -86,6 +86,7 @@ export function App() {
           ["/models/:modelId", "Instrument overview", Model],
           ["/models/:modelId/tests/:code", "Test sheet", Model],
           ["/reports", "Report repository", Reports],
+          ["/instruments", "Instrument registry", Instruments],
           ["/profile", "Profile", Profile],
           ["/test-history", "Test history", TestHistory],
         ].map(([path, title, Component]) => (
