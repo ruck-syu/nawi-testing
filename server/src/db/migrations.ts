@@ -134,6 +134,7 @@ async function migrateUserProfile(): Promise<void> {
   await getSql().unsafe(`
     ALTER TABLE "user" ADD COLUMN IF NOT EXISTS signature_path TEXT;
     ALTER TABLE "user" ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE "user" ADD COLUMN IF NOT EXISTS signature_image TEXT;
   `);
 }
 
