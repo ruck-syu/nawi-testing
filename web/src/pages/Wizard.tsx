@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
@@ -23,7 +23,15 @@ interface Draft {
   referenceWeights: number[];
 }
 
+function todayKey(): string {
+  const d = new Date();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
 function initialDraft(standard: string): Draft {
+  const today = todayKey();
   return {
     manufacturer_name: "",
     manufacturer_address: "",
@@ -32,7 +40,7 @@ function initialDraft(standard: string): Draft {
     report_no: "",
     danak_no: "",
     standard_version: standard,
-    examination_start_date: "",
+    examination_start_date: today,
     examination_end_date: "",
     family_name: "",
     model: {
@@ -55,9 +63,13 @@ function initialDraft(standard: string): Draft {
 
 export function Wizard() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const fromModelId = searchParams.get("from_model");
   const [standards, setStandards] = useState<string[]>([]);
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [prefillNote, setPrefillNote] = useState<string | null>(null);
+  const prefilledRef = useRef(false);
 
   useEffect(() => {
     let live = true;
@@ -77,6 +89,49 @@ export function Wizard() {
     };
   }, []);
 
+  // Deep link from the Instruments registry: prefill the instrument spec so a
+  // resubmission or variant starts from recorded values instead of a blank
+  // form. Examination-level fields (task, report, manufacturer) are always
+  // per-examination and stay blank; name/serial identify the new unit.
+  useEffect(() => {
+    if (!fromModelId || !draft || prefilledRef.current) return;
+    prefilledRef.current = true;
+    let live = true;
+    api
+      .get<{ model: Record<string, any> }>(`/models/${fromModelId}`)
+      .then((data) => {
+        if (!live) return;
+        const m = data.model ?? {};
+        setDraft((d) => {
+          if (!d) return d;
+          const model = { ...d.model };
+          for (const key of [
+            "max_capacity",
+            "min_capacity",
+            "e_value",
+            "d_value",
+            "accuracy_class",
+            "fractional_factor_pi",
+            "pan_shape",
+            "load_cell_type",
+            "load_cell_manufacturer",
+          ]) {
+            if (m[key] !== null && m[key] !== undefined) model[key] = String(m[key]);
+          }
+          return { ...d, model };
+        });
+        setPrefillNote(
+          `Instrument spec prefilled from ${m.model_name ?? "registry"}. Only the examination details and the new unit's name/serial need entering.`
+        );
+      })
+      .catch(() => {
+        if (live) setPrefillNote("Could not load the instrument spec — starting blank.");
+      });
+    return () => {
+      live = false;
+    };
+  }, [fromModelId, draft]);
+
   if (!draft) return <p className="text-sm text-muted-foreground">Loading master data…</p>;
 
   const patch = (key: keyof Draft, value: string) =>
@@ -95,6 +150,11 @@ export function Wizard() {
         </Link>
       </div>
       <Stepper steps={STEPS} active={step} />
+      {prefillNote && (
+        <p className="mb-4 rounded-md border bg-card px-3 py-2 text-sm text-muted-foreground">
+          {prefillNote}
+        </p>
+      )}
       {step === 0 && (
         <StepProject draft={draft} standards={standards} patch={patch} next={() => setStep(1)} />
       )}
@@ -204,6 +264,13 @@ function StepProject({
           <CardTitle>Manufacturer</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          <ManufacturerPicker
+            onPick={(m) => {
+              patch("manufacturer_name", m.name ?? "");
+              patch("manufacturer_address", m.address ?? "");
+              patch("contact_person", m.contact_person ?? "");
+            }}
+          />
           <div className="flex flex-col gap-4 sm:flex-row">
             <Field label="Name">{text("manufacturer_name", "Taiwan Scale Mfg. Co. Ltd.")}</Field>
             <Field label="Contact person">{text("contact_person", "Optional")}</Field>
@@ -223,6 +290,104 @@ function StepProject({
           Continue to instrument
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Manufacturer picker: fetch from the Manage → Manufacturers directory instead
+ * of retyping. Fills name, address, and contact; the examination still creates
+ * (or finds) the record by name on submit.
+ */
+function ManufacturerPicker({
+  onPick,
+}: {
+  onPick: (m: { name?: string | null; address?: string | null; contact_person?: string | null }) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<any[]>([]);
+  const [selected, setSelected] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const search = async () => {
+    setBusy(true);
+    setNote(null);
+    try {
+      const data = (await api.get("/manufacturers")) as { manufacturers: any[] };
+      const q = query.trim().toLowerCase();
+      const list = (data.manufacturers ?? []).filter(
+        (m: any) =>
+          !q ||
+          [m.name, m.contact_person, m.email].filter(Boolean).some((f: string) =>
+            String(f).toLowerCase().includes(q)
+          )
+      );
+      setResults(list);
+      if (list.length > 0) setSelected(String(list[0].id));
+      if (list.length === 0) setNote("No manufacturers match — or add one under Manage.");
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : "Search failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const use = () => {
+    const m = results.find((r: any) => String(r.id) === selected);
+    if (m) {
+      onPick(m);
+      setNote(`Filled from ${m.name}.`);
+    }
+  };
+
+  if (!open) {
+    return (
+      <div>
+        <Button variant="outline" size="sm" onClick={() => { setOpen(true); void search(); }}>
+          Pick from directory
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-md border bg-muted/50 px-3 py-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input
+          placeholder="Search the directory…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void search();
+          }}
+        />
+        <Button variant="outline" size="sm" onClick={() => void search()} disabled={busy}>
+          {busy ? "Searching…" : "Search"}
+        </Button>
+      </div>
+      {results.length > 0 && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <select
+            aria-label="Pick a manufacturer from the directory"
+            value={selected}
+            onChange={(e) => setSelected(e.target.value)}
+            className="h-9 flex-1 rounded-md border border-border bg-input px-3 text-sm shadow-xs"
+          >
+            {results.map((r: any) => (
+              <option key={r.id} value={String(r.id)}>
+                {r.name}
+                {r.contact_person ? ` · ${r.contact_person}` : ""}
+              </option>
+            ))}
+          </select>
+          <Button variant="accent" size="sm" onClick={use} disabled={!selected}>
+            Use this
+          </Button>
+        </div>
+      )}
+      {note && <p className="text-xs text-muted-foreground">{note}</p>}
     </div>
   );
 }
@@ -284,6 +449,7 @@ function StepModel({
 
   return (
     <div className="flex flex-col gap-4">
+      <SpecReuse patchModel={patchModel} />
       <Card>
         <CardHeader>
           <CardTitle>Instrument model</CardTitle>
@@ -352,6 +518,115 @@ function StepModel({
         </Button>
       </div>
     </div>
+  );
+}
+/**
+ * Spec reuse: copy Max/Min/e/d, class, receptor and load-cell details from a
+ * previously examined instrument. The new model keeps its own name and serial;
+ * reference weights regenerate from the copied spec on Continue.
+ */
+function SpecReuse({ patchModel }: { patchModel: (key: string, value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<any[]>([]);
+  const [selected, setSelected] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const search = async () => {
+    setBusy(true);
+    setNote(null);
+    try {
+      const params = new URLSearchParams({ limit: "50" });
+      if (query.trim()) params.set("search", query.trim());
+      const data = (await api.get(`/models?${params}`)) as { models: any[] };
+      setResults(data.models ?? []);
+      if (data.models?.length > 0) setSelected(String(data.models[0].id));
+      if ((data.models ?? []).length === 0) setNote("No instruments match.");
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : "Search failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reuse = async () => {
+    if (!selected) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      const data = (await api.get(`/models/${selected}`)) as { model: Record<string, any> };
+      const m = data.model ?? {};
+      for (const key of [
+        "max_capacity",
+        "min_capacity",
+        "e_value",
+        "d_value",
+        "accuracy_class",
+        "fractional_factor_pi",
+        "pan_shape",
+        "load_cell_type",
+        "load_cell_manufacturer",
+      ]) {
+        if (m[key] !== null && m[key] !== undefined) patchModel(key, String(m[key]));
+      }
+      setNote(
+        `Spec copied from ${m.model_name ?? "instrument"}. Give the new model its own name and serial number.`
+      );
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : "Could not copy the spec.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-2 pt-5">
+        <div>
+          <Button variant="outline" onClick={() => setOpen((o) => !o)}>
+            {open ? "Hide spec reuse" : "Reuse an existing instrument's spec"}
+          </Button>
+        </div>
+        {open && (
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                placeholder="Model, family, task no., manufacturer…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void search();
+                }}
+              />
+              <Button variant="outline" size="sm" onClick={() => void search()} disabled={busy}>
+                {busy ? "Searching…" : "Search"}
+              </Button>
+            </div>
+            {results.length > 0 && (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <select
+                  aria-label="Pick an instrument to copy the spec from"
+                  value={selected}
+                  onChange={(e) => setSelected(e.target.value)}
+                  className="h-9 flex-1 rounded-md border border-border bg-input px-3 text-sm shadow-xs"
+                >
+                  {results.map((r: any) => (
+                    <option key={r.id} value={String(r.id)}>
+                      {r.model_name} · Max {r.max_capacity} · e {r.e_value} · {r.task_no}
+                    </option>
+                  ))}
+                </select>
+                <Button variant="accent" size="sm" onClick={() => void reuse()} disabled={busy || !selected}>
+                  Copy spec
+                </Button>
+              </div>
+            )}
+            {note && <p className="text-xs text-muted-foreground">{note}</p>}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

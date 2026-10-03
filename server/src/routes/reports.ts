@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import type { IncomingMessage } from 'node:http';
 import { all, get, run } from '../db/index.ts';
 import { config } from '../config.ts';
 import { badRequest, notFound, num, numOrNull, oneOf, strOrNull, type Router } from '../http.ts';
@@ -23,6 +24,20 @@ const EXTENSIONS: Record<string, string> = {
   'image/gif': '.gif',
 };
 
+/**
+ * The origin this request arrived on (proxy-aware). undefined when no host
+ * header is present — callers fall back to SITE_URL in that case.
+ */
+function requestBaseUrl(req: IncomingMessage): string | undefined {
+  const first = (v: string | string[] | undefined): string =>
+    Array.isArray(v) ? (v[0] ?? '') : (v ?? '');
+  const host = first(req.headers['x-forwarded-host'] ?? req.headers.host).split(',')[0]!.trim();
+  if (!host) return undefined;
+  const proto = first(req.headers['x-forwarded-proto']).split(',')[0]!.trim() ||
+    ((req.socket as { encrypted?: boolean } | undefined)?.encrypted ? 'https' : 'http');
+  return `${proto}://${host}`;
+}
+
 export function registerReportRoutes(router: Router): void {
   // -------------------------------------------------------------------------
   // Generation
@@ -36,6 +51,7 @@ export function registerReportRoutes(router: Router): void {
       const { report, pdfFallback } = await generateReport(projectId, {
         format,
         generatedBy: ctx.user?.name ?? undefined,
+        baseUrl: requestBaseUrl(ctx.req),
       });
       return {
         report,
@@ -127,6 +143,90 @@ export function registerReportRoutes(router: Router): void {
       return { deleted: id };
     },
     ['admin'],
+  );
+
+  // -------------------------------------------------------------------------
+  // Public verification
+  // -------------------------------------------------------------------------
+
+  /**
+   * Unauthenticated verification lookup: the unguessable verification token in
+   * the path is the credential, same pattern as `/api/public/share/:token`.
+   * Unknown tokens return `{ valid: false }` rather than 404 so scanners get a
+   * plain verdict instead of an error page.
+   */
+  router.get(
+    '/api/public/verify/:token',
+    async (ctx) => {
+      const row = await get<{
+        report_no: string | null;
+        overall_verdict: string | null;
+        test_count: number | null;
+        pass_count: number | null;
+        fail_count: number | null;
+        generated_at: string;
+        integrity_hash: string | null;
+        project_id: number;
+        task_no: string;
+        standard_version: string;
+        approved_at: string | null;
+        manufacturer_name: string;
+        approved_by_name: string | null;
+      }>(
+        `SELECT gr.report_no, gr.overall_verdict, gr.test_count, gr.pass_count,
+                gr.fail_count, gr.generated_at, gr.integrity_hash,
+                p.id AS project_id, p.task_no, p.standard_version, p.approved_at,
+                m.name AS manufacturer_name, u.name AS approved_by_name
+           FROM generated_report gr
+           JOIN project p ON p.id = gr.project_id
+           JOIN manufacturer m ON m.id = p.manufacturer_id
+           LEFT JOIN "user" u ON u.id = p.approved_by
+          WHERE gr.verification_token = ?`,
+        [String(ctx.params.token ?? '')],
+      );
+      if (!row) return { valid: false };
+
+      const instrument = await get<{
+        model_name: string;
+        max_capacity: number;
+        accuracy_class: string;
+      }>(
+        `SELECT im.model_name, im.max_capacity, im.accuracy_class
+           FROM instrument_model im
+           JOIN instrument_family f ON f.id = im.family_id
+          WHERE f.project_id = ?
+          ORDER BY im.id
+          LIMIT 1`,
+        [row.project_id],
+      );
+
+      const testCount = row.test_count ?? 0;
+      const passCount = row.pass_count ?? 0;
+      const failCount = row.fail_count ?? 0;
+
+      ctx.res.setHeader('Cache-Control', 'no-store');
+
+      return {
+        valid: true,
+        reportNo: row.report_no,
+        taskNo: row.task_no,
+        standardVersion: row.standard_version,
+        manufacturer: row.manufacturer_name,
+        instrument: instrument
+          ? `${instrument.model_name} · Max ${instrument.max_capacity} · Class ${instrument.accuracy_class}`
+          : null,
+        overallVerdict: row.overall_verdict,
+        testCount,
+        passCount,
+        failCount,
+        incompleteCount: testCount - passCount - failCount,
+        approvedBy: row.approved_by_name,
+        approvedAt: row.approved_at,
+        generatedAt: row.generated_at,
+        integrityHash: row.integrity_hash,
+      };
+    },
+    null,
   );
 
   // -------------------------------------------------------------------------

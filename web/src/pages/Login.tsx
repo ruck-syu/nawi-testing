@@ -7,21 +7,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Input, Label } from "../components/ui/input";
 import logo from "../assets/logo.svg";
 
+const DEMO_ACCOUNTS = [
+  { label: "Admin (Signatory)", email: "admin@delta.test", password: "admin123" },
+  { label: "Technician", email: "tech@delta.test", password: "tech123" },
+];
+
 export function Login() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("tech@delta.test");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState(DEMO_ACCOUNTS[0]!.email);
+  const [password, setPassword] = useState(DEMO_ACCOUNTS[0]!.password);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   if (session.token) return <Navigate to="/projects" replace />;
 
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
+  async function signInWith(creds: { email: string; password: string }) {
     setError(null);
     setBusy(true);
     try {
-      const data = (await api.post("/auth/login", { email, password })) as {
+      const data = (await api.post("/auth/login", creds)) as {
         token: string;
         user: { email: string; name?: string; role?: string };
       };
@@ -32,6 +36,11 @@ export function Login() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    await signInWith({ email, password });
   }
 
   return (
@@ -93,9 +102,31 @@ export function Login() {
                   {busy ? "Signing in…" : "Sign in"}
                 </Button>
               </form>
-              <div className="mt-4 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-                Demo accounts — admin: <span className="font-mono">admin@delta.test / admin123</span>
-                {" · "}technician: <span className="font-mono">tech@delta.test / tech123</span>
+              <div className="mt-4 p-3 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-600 space-y-2">
+                <div className="font-semibold text-slate-700">Demo Credentials</div>
+                {DEMO_ACCOUNTS.map((a) => (
+                  <div key={a.email} className="border-t border-slate-200 pt-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium text-slate-700">{a.label}</div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="ml-auto h-6 px-2 text-[11px]"
+                        disabled={busy}
+                        onClick={() => void signInWith({ email: a.email, password: a.password })}
+                      >
+                        Log in
+                      </Button>
+                    </div>
+                    <div>
+                      Email: <span className="font-mono">{a.email}</span>
+                    </div>
+                    <div>
+                      Password: <span className="font-mono">{a.password}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>

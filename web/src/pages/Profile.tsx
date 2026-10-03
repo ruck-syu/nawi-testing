@@ -1,17 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TriangleAlert } from "lucide-react";
 import { api, ApiError, fileUrl, session } from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "../components/ui/table";
 
 interface ProfileUser {
   id: number;
@@ -25,12 +17,13 @@ interface ProfileUser {
 
 export function Profile() {
   const [me, setMe] = useState<ProfileUser | null>(null);
-  const [users, setUsers] = useState<ProfileUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // Database copy of the signature: survives wiped upload directories.
+  const [sigImage, setSigImage] = useState<string | null>(null);
 
   const isAdmin = (session.user?.role ?? "") === "admin";
 
@@ -42,16 +35,6 @@ export function Profile() {
         if (!live) return;
         setMe(data.user);
         setName(data.user.name);
-        if (isAdmin) {
-          api
-            .get<{ users: ProfileUser[] }>("/users")
-            .then((list) => {
-              if (live) setUsers(list.users ?? []);
-            })
-            .catch(() => {
-              if (live) setUsers([]);
-            });
-        }
       })
       .catch((err) => {
         if (live) setError(err instanceof ApiError ? err.message : "Could not load profile.");
@@ -60,6 +43,22 @@ export function Profile() {
       live = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let live = true;
+    api
+      .get<{ image: string | null }>("/users/me/signature")
+      .then((data) => {
+        if (live) setSigImage(data.image);
+      })
+      .catch(() => {
+        /* the file-URL fallback below still stands */
+      });
+    return () => {
+      live = false;
+    };
+  }, [isAdmin]);
 
   function refreshSession(user: ProfileUser) {
     // The masthead reads the stored session, so keep it in step with renames.
@@ -100,6 +99,8 @@ export function Profile() {
       form.append("signature", file, file.name);
       const data = await api.upload<{ user: ProfileUser }>("/users/me/signature", form);
       setMe(data.user);
+      const img = await api.get<{ image: string | null }>("/users/me/signature");
+      setSigImage(img.image);
       setNotice("Signature uploaded. It will print on reports you sign from now on.");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not upload signature.");
@@ -109,24 +110,17 @@ export function Profile() {
   }
 
   async function removeSignature() {
+    if (!window.confirm("Remove your signature? Reports you sign will show the ruled line only.")) {
+      return;
+    }
     setError(null);
     try {
       const data = await api.delete<{ user: ProfileUser }>("/users/me/signature");
       setMe(data.user);
+      setSigImage(null);
       setNotice("Signature removed.");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not remove signature.");
-    }
-  }
-
-  async function updateUser(id: number, patch: Partial<Pick<ProfileUser, "role" | "is_active" | "name">>) {
-    setError(null);
-    try {
-      const data = await api.patch<{ user: ProfileUser }>(`/users/${id}`, patch);
-      setUsers((prev) => (prev ?? []).map((u) => (u.id === id ? data.user : u)));
-      setNotice("User updated. Role changes apply on their next sign-in.");
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not update user.");
     }
   }
 
@@ -173,10 +167,10 @@ export function Profile() {
           {isAdmin && (
           <div>
             <p className="mb-1 text-sm font-medium">Signature</p>
-            {me?.signature_url ? (
+            {me?.signature_url || sigImage ? (
               <div className="flex items-center gap-4">
                 <img
-                  src={fileUrl(me.signature_url)}
+                  src={sigImage ?? fileUrl(me!.signature_url!)}
                   alt="Your uploaded signature"
                   className="max-h-20 max-w-56 border bg-white px-2 py-1"
                 />
@@ -189,186 +183,89 @@ export function Profile() {
                 No signature uploaded. Reports you sign will show the ruled line only.
               </p>
             )}
-            <div className="mt-2">
-              <label htmlFor="profile-signature" className="mb-1 block text-xs text-muted-foreground">
-                Upload a PNG (under 2 MB){me?.signature_url ? " to replace the current one" : ""}:
-              </label>
-              <Input
-                id="profile-signature"
-                type="file"
-                accept="image/png"
-                disabled={uploading}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  e.target.value = "";
-                  if (file) void uploadSignature(file);
-                }}
-              />
-            </div>
+            <SignatureDropzone
+              uploading={uploading}
+              hasCurrent={!!me?.signature_url}
+              onFile={(file) => void uploadSignature(file)}
+            />
           </div>
           )}
         </CardContent>
       </Card>
-
-      {isAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle>People</CardTitle>
-            <CardDescription>
-              Everyone with access. You cannot change your own role or status here — use
-              the profile section above for yourself.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {!users ? (
-              <p className="text-sm text-muted-foreground">Loading…</p>
-            ) : users.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No users found.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Signature</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((u) => {
-                    const self = me !== null && u.id === me.id;
-                    return (
-                      <TableRow key={u.id}>
-                        <TableCell className="text-sm font-medium">{u.name}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{u.email}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {u.has_signature ? "Uploaded" : "—"}
-                        </TableCell>
-                        <TableCell>
-                          <select
-                            aria-label={`Role for ${u.email}`}
-                            className="h-8 rounded-md border border-border bg-input px-2 text-sm"
-                            value={u.role}
-                            disabled={self}
-                            onChange={(e) => void updateUser(u.id, { role: e.target.value as "admin" | "technician" })}
-                          >
-                            <option value="admin">admin</option>
-                            <option value="technician">technician</option>
-                          </select>
-                        </TableCell>
-                        <TableCell>
-                          <select
-                            aria-label={`Status for ${u.email}`}
-                            className="h-8 rounded-md border border-border bg-input px-2 text-sm"
-                            value={u.is_active ? "active" : "inactive"}
-                            disabled={self}
-                            onChange={(e) => void updateUser(u.id, { is_active: e.target.value === "active" })}
-                          >
-                            <option value="active">active</option>
-                            <option value="inactive">inactive</option>
-                          </select>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-            <AddTechnician
-              onCreated={(u) => {
-                setUsers((prev) => [...(prev ?? []), u]);
-                setNotice(`Account created for ${u.email}. Share their password securely.`);
-              }}
-              onError={setError}
-            />
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
 
-function AddTechnician({
-  onCreated,
-  onError,
+function SignatureDropzone({
+  uploading,
+  hasCurrent,
+  onFile,
 }: {
-  onCreated: (u: ProfileUser) => void;
-  onError: (message: string) => void;
+  uploading: boolean;
+  hasCurrent: boolean;
+  onFile: (file: File) => void;
 }) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [role, setRole] = useState("technician");
-  const [busy, setBusy] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
-  async function create() {
-    if (!name.trim() || !email.trim() || !password) {
-      onError("Name, email, and a password are all required.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const data = await api.post<{ user: ProfileUser }>("/users", {
-        name: name.trim(),
-        email: email.trim(),
-        password,
-        role,
-      });
-      onCreated(data.user);
-      setName("");
-      setEmail("");
-      setPassword("");
-      setRole("technician");
-    } catch (err) {
-      onError(err instanceof ApiError ? err.message : "Could not create the account.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const take = (file: File | undefined | null) => {
+    if (file) onFile(file);
+  };
 
   return (
-    <div className="mt-4 border-t pt-4">
-      <p className="mb-2 text-sm font-medium">Add technician</p>
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        <Input
-          aria-label="New user name"
-          placeholder="Full name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          maxLength={120}
-          className="sm:max-w-44"
-        />
-        <Input
-          aria-label="New user email"
-          placeholder="Email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          maxLength={160}
-          className="sm:max-w-56"
-        />
-        <Input
-          aria-label="Temporary password"
-          placeholder="Temporary password (8+ characters)"
-          type="text"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          maxLength={120}
-          className="sm:max-w-56"
-        />
-        <select
-          aria-label="Role for the new account"
-          className="h-9 rounded-md border border-border bg-input px-3 text-sm shadow-xs"
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
+    <div className="mt-2">
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label="Drop a PNG signature here, or browse to choose one"
+        onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          take(e.dataTransfer.files?.[0]);
+        }}
+        className={`flex flex-col items-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-center transition ${
+          dragging ? "border-primary bg-primary/5" : "border-border bg-muted/40"
+        }`}
+      >
+        <p className="text-sm font-medium">
+          {uploading ? "Uploading…" : "Drop a PNG here"}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Under 2 MB{hasCurrent ? " — replaces the current signature" : ""}.
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={uploading}
+          onClick={(e) => {
+            e.stopPropagation();
+            inputRef.current?.click();
+          }}
         >
-          <option value="technician">technician</option>
-          <option value="admin">admin</option>
-        </select>
-        <Button size="sm" onClick={() => void create()} disabled={busy}>
-          {busy ? "Adding…" : "Add"}
+          Browse files
         </Button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png"
+          className="hidden"
+          disabled={uploading}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            take(file);
+          }}
+        />
       </div>
     </div>
   );
