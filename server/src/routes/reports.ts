@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import type { IncomingMessage } from 'node:http';
 import { all, get, run } from '../db/index.ts';
 import { config } from '../config.ts';
 import { badRequest, notFound, num, numOrNull, oneOf, strOrNull, type Router } from '../http.ts';
@@ -23,6 +24,20 @@ const EXTENSIONS: Record<string, string> = {
   'image/gif': '.gif',
 };
 
+/**
+ * The origin this request arrived on (proxy-aware). undefined when no host
+ * header is present — callers fall back to SITE_URL in that case.
+ */
+function requestBaseUrl(req: IncomingMessage): string | undefined {
+  const first = (v: string | string[] | undefined): string =>
+    Array.isArray(v) ? (v[0] ?? '') : (v ?? '');
+  const host = first(req.headers['x-forwarded-host'] ?? req.headers.host).split(',')[0]!.trim();
+  if (!host) return undefined;
+  const proto = first(req.headers['x-forwarded-proto']).split(',')[0]!.trim() ||
+    ((req.socket as { encrypted?: boolean } | undefined)?.encrypted ? 'https' : 'http');
+  return `${proto}://${host}`;
+}
+
 export function registerReportRoutes(router: Router): void {
   // -------------------------------------------------------------------------
   // Generation
@@ -36,6 +51,7 @@ export function registerReportRoutes(router: Router): void {
       const { report, pdfFallback } = await generateReport(projectId, {
         format,
         generatedBy: ctx.user?.name ?? undefined,
+        baseUrl: requestBaseUrl(ctx.req),
       });
       return {
         report,

@@ -92,7 +92,7 @@ function slug(value: string): string {
  */
 export async function generateReport(
   projectId: number,
-  options: { format?: 'html' | 'pdf' | 'docx' | 'xlsx'; generatedBy?: string } = {},
+  options: { format?: 'html' | 'pdf' | 'docx' | 'xlsx'; generatedBy?: string; baseUrl?: string } = {},
 ): Promise<{ report: GeneratedReport; pdfFallback: boolean }> {
   const format = options.format ?? 'html';
   // The model is built once and shared: persistence reads project/rollup from it and
@@ -125,7 +125,11 @@ export async function generateReport(
       .createHash('sha256')
       .update(JSON.stringify(payload))
       .digest('hex');
-    const verifyUrl = `${config.siteUrl}/#/verify/${token}`;
+    // The QR must point back at wherever this server is actually reached —
+    // a hardcoded origin would bake localhost into reports generated in
+    // production. Callers pass the request's own origin; SITE_URL is the
+    // fallback for script-driven generation with no request in scope.
+    const verifyUrl = `${options.baseUrl ?? config.siteUrl}/#/verify/${token}`;
     const [qrDataUrl, qrBuffer] = await Promise.all([
       QRCode.toDataURL(verifyUrl, { width: 200, margin: 1 }),
       QRCode.toBuffer(verifyUrl, { width: 200, margin: 1 }),
