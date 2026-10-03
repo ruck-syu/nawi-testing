@@ -12,6 +12,9 @@
 
 import { all, get, parseJson } from '../db/index.ts';
 import { notFound } from '../http.ts';
+import { config } from '../config.ts';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   evaluateTestRun,
   modelSummary,
@@ -176,19 +179,41 @@ export async function buildReportModel(
   // historical rows fall back to a name match, then to recorded values.
   if (signature) {
     const linked = signature.signed_by_user_id
-      ? await get<{ name: string; signature_path: string | null }>(
-          'SELECT name, signature_path FROM "user" WHERE id = ?',
+      ? await get<{ id: number; name: string; signature_path: string | null; signature_image: string | null }>(
+          'SELECT id, name, signature_path, signature_image FROM "user" WHERE id = ?',
           [signature.signed_by_user_id],
         )
       : null;
     const holder = linked ??
-      (await get<{ name: string; signature_path: string | null }>(
-        'SELECT name, signature_path FROM "user" WHERE name = ?',
+      (await get<{ id: number; name: string; signature_path: string | null; signature_image: string | null }>(
+        'SELECT id, name, signature_path, signature_image FROM "user" WHERE name = ?',
         [signature.signed_by_name],
       ));
     if (holder) {
       signature.signed_by_name = holder.name;
-      if (holder.signature_path) signature.signature_image_path = holder.signature_path;
+      // Disk is a cache, the database is the source of truth: regenerate the
+      // file from the stored image whenever a wiped uploads directory leaves a
+      // dangling signature_path behind.
+      if (holder.signature_image?.startsWith('data:image')) {
+        try {
+          fs.mkdirSync(config.uploadsDir, { recursive: true });
+          const cached = `sig-db-${holder.id}.png`;
+          const absolute = path.join(config.uploadsDir, cached);
+          if (!fs.existsSync(absolute)) {
+            const b64 = holder.signature_image.split(',')[1] ?? '';
+            const data = Buffer.from(b64, 'base64');
+            if (data.length > 0 && data.length <= 2 * 1024 * 1024) {
+              fs.writeFileSync(absolute, data);
+            }
+          }
+          if (fs.existsSync(absolute)) signature.signature_image_path = cached;
+          else if (holder.signature_path) signature.signature_image_path = holder.signature_path;
+        } catch {
+          if (holder.signature_path) signature.signature_image_path = holder.signature_path;
+        }
+      } else if (holder.signature_path) {
+        signature.signature_image_path = holder.signature_path;
+      }
     }
   }
 

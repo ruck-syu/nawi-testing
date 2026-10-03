@@ -1,5 +1,5 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { FlaskConical, FileText, LayoutDashboard, Plus, LogOut, CircleUserRound, Scale } from "lucide-react";
+import { FlaskConical, FileText, LayoutDashboard, Plus, LogOut, CircleUserRound, Scale, Settings, BookOpen } from "lucide-react";
 import { cn } from "../lib/utils";
 import { session } from "../lib/api";
 import { Button } from "./ui/button";
@@ -10,6 +10,8 @@ const NAV = [
   { to: "/instruments", label: "Instruments", icon: Scale, end: false },
   { to: "/test-history", label: "Test History", icon: FlaskConical, end: false },
   { to: "/reports", label: "Reports", icon: FileText, end: false },
+  { to: "/standards", label: "Standards", icon: BookOpen, end: false },
+  { to: "/manage", label: "Manage", icon: Settings, end: false },
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {

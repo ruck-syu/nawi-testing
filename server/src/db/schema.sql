@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS "user" (
   -- Standing signature image for report signing, uploaded from the profile page.
   -- Stored as a file name under the uploads directory, same convention as attachments.
   signature_path TEXT,
+  -- Database copy of the signature image (data URL). The uploads directory is
+  -- ephemeral on hosted installs, so this column is the source of truth: files
+  -- are regenerated from it whenever they go missing.
+  signature_image TEXT,
   -- Admins deactivate accounts instead of deleting them, so history keeps its names.
   is_active      BOOLEAN NOT NULL DEFAULT TRUE,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
