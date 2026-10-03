@@ -631,27 +631,6 @@ function withPoH<T extends { id: number; projectId: number; testTypeCode: string
 
       const testLoad = numOrNull(ctx.body.test_load);
 
-      // Carry-forward: a new sheet starts with the conditions last recorded on a
-      // sibling sheet of the same instrument, so date/operator/lab climate are
-      // entered once per session instead of once per sheet. Only fills a fresh
-      // row (all blanks), never overwrites an existing run.
-      const donor = await get<{
-        date_performed: string | null;
-        time_performed: string | null;
-        operator_name: string | null;
-        temperature_c: number | null;
-        chamber_temp_c: number | null;
-        room_temp_c: number | null;
-        humidity_pct: number | null;
-        barometric_hpa: number | null;
-      }>(
-        `SELECT date_performed, time_performed, operator_name, temperature_c,
-                chamber_temp_c, room_temp_c, humidity_pct, barometric_hpa
-           FROM test_run WHERE model_id = ?
-           ORDER BY updated_at DESC LIMIT 1`,
-        [modelId],
-      );
-
       for (let attempt = 0; attempt < 3; attempt++) {
         const existing = await get<{ id: number }>(
           'SELECT id FROM test_run WHERE model_id = ? AND test_type_code = ?',
@@ -659,27 +638,13 @@ function withPoH<T extends { id: number; projectId: number; testTypeCode: string
         );
         if (existing) return { testRun: await evaluateTestRun(existing.id), created: false };
 
-          try {
+        try {
           const out = await transaction(async () => {
             const inserted = await run(
-              `INSERT INTO test_run (model_id, test_type_code, status, test_load, operator_name,
-                 date_performed, time_performed, temperature_c, chamber_temp_c, room_temp_c,
-                 humidity_pct, barometric_hpa)
-               VALUES (?, ?, 'not_started', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              `INSERT INTO test_run (model_id, test_type_code, status, test_load, operator_name)
+               VALUES (?, ?, 'not_started', ?, ?)
                ON CONFLICT (model_id, test_type_code) DO NOTHING`,
-              [
-                modelId,
-                code,
-                testLoad,
-                donor?.operator_name ?? ctx.user?.name ?? null,
-                donor?.date_performed ?? null,
-                donor?.time_performed ?? null,
-                donor?.temperature_c ?? null,
-                donor?.chamber_temp_c ?? null,
-                donor?.room_temp_c ?? null,
-                donor?.humidity_pct ?? null,
-                donor?.barometric_hpa ?? null,
-              ],
+              [modelId, code, testLoad, ctx.user?.name ?? null],
             );
             // Lost the race after all: loop back and return the winner.
             if (inserted.changes === 0) throw new RaceLostError();
@@ -802,46 +767,6 @@ function withPoH<T extends { id: number; projectId: number; testTypeCode: string
 
         return { testRun: await refreshTestRunVerdict(runId) };
       });
-    },
-    [],
-  );
-
-  /**
-   * Copy the environmental/operator conditions from one run onto another within
-   * the same examination. Only the session-level header moves (date, time,
-   * operator, lab climate) — test-specific fields like test load stay put.
-   */
-  router.post(
-    '/api/test-runs/:id/copy-conditions',
-    async (ctx) => {
-      const runId = Number(ctx.params.id);
-      const testRun = await getTestRun(runId);
-      const projectId = await projectIdForModel(testRun.model_id);
-      await requireEditableProject(projectId, ctx);
-      const fromId = num(ctx.body.from_run_id, 'from_run_id');
-      if (fromId === runId) throw badRequest('Cannot copy conditions onto the same run');
-      const donor = await getTestRun(fromId);
-      if ((await projectIdForModel(donor.model_id)) !== projectId) {
-        throw badRequest('Conditions can only be copied within the same examination');
-      }
-      await run(
-        `UPDATE test_run SET date_performed = ?, time_performed = ?, operator_name = ?,
-           temperature_c = ?, chamber_temp_c = ?, room_temp_c = ?,
-           humidity_pct = ?, barometric_hpa = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-        [
-          donor.date_performed,
-          donor.time_performed,
-          donor.operator_name,
-          donor.temperature_c,
-          donor.chamber_temp_c,
-          donor.room_temp_c,
-          donor.humidity_pct,
-          donor.barometric_hpa,
-          runId,
-        ],
-      );
-      return { testRun: await refreshTestRunVerdict(runId) };
     },
     [],
   );

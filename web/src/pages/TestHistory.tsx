@@ -355,6 +355,10 @@ export function TestHistory() {
             <ProofField label="Chain hash" value={proof.poh.hash} />
             <ProofField label="Slot" value={String(proof.poh.slot)} mono={false} />
             <ProofField label="Transaction signature" value={proof.poh.signature} />
+            <p className="mt-3 text-xs text-muted-foreground">
+              Simulated anchoring on Solana devnet — computed locally for demonstration, not
+              sent to any network.
+            </p>
           </div>
         </div>
       )}

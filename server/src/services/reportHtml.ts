@@ -30,7 +30,7 @@ import type {
   ProjectRollup,
   SummaryEntry,
 } from './evaluation.ts';
-import type { ChecklistModelRow, ReportModel, ReportVerification, SignatureModel } from './reportModel.ts';
+import type { ChecklistModelRow, ReportModel, SignatureModel } from './reportModel.ts';
 import type { IReportRenderer, RenderOptions } from './report.ts';
 import { verdictLabel } from './reportStyle.ts';
 
@@ -176,11 +176,6 @@ td.fail { font-weight:700; text-decoration:underline; }
 /* Fixed-height slot so both ruled lines sit level whether or not a signature image exists. */
 .sigimg { height:16mm; display:flex; align-items:flex-end; }
 .sigimg img { max-width:55mm; max-height:16mm; margin:0 0 1mm; }
-/* Verification block: dashed border and light shading so it reads as an
-   official stamp, not body text. Kept whole across page breaks. */
-.verify { display:flex; gap:5mm; align-items:flex-start; border:1pt dashed var(--ink); background:var(--headbg); padding:4mm; margin-top:8mm; page-break-inside:avoid; break-inside:avoid; }
-.verify img { width:150px; height:150px; flex:none; }
-.verify .vtext p { margin:0 0 1mm; }
 .formula { font-size:7.5pt; color:var(--muted); font-style:italic; }
 
 @page { size: A4; margin: 14mm 12mm 16mm; }
@@ -1147,7 +1142,6 @@ function signatureSheet(
   ctx: ProjectContext,
   rollup: ProjectRollup,
   signature: SignatureModel | null,
-  verification: ReportVerification | null | undefined,
   page: number,
   pages: number,
 ): string {
@@ -1195,18 +1189,6 @@ function signatureSheet(
       </div>
     </div>`}
 
-    ${verification
-      ? `<div class="verify">
-      <img src="${esc(verification.qrDataUrl)}" alt="Verification QR code">
-      <div class="vtext">
-        <p><strong>Scan QR on phone to verify report integrity</strong></p>
-        <p>OR open the link below in your browser</p>
-        <p class="small muted">${esc(verification.verifyUrl)}</p>
-        <p>Government of India — Legal Metrology Division</p>
-      </div>
-    </div>`
-      : ''}
-
     <p class="small muted" style="margin-top:12mm">Report ${esc(ctx.project.report_no)} &middot;
       generated ${esc(ctx.generatedAt)} &middot; ${rollup.testCount} tests evaluated.
       This document was produced from the recorded measurements; the pass/fail decisions were computed
@@ -1253,7 +1235,7 @@ export class HtmlRenderer implements IReportRenderer<string> {
     if (model.checklist.length > 0) {
       sheets.push((page, pages) => checklistSheet(ctx, model.checklist, page, pages));
     }
-    sheets.push((page, pages) => signatureSheet(ctx, rollup, model.signature, model.verification, page, pages));
+    sheets.push((page, pages) => signatureSheet(ctx, rollup, model.signature, page, pages));
 
     const pages = sheets.length;
     const body = sheets.map((sheet, i) => sheet(i + 1, pages)).join('\n');

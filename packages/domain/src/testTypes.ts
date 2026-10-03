@@ -69,19 +69,7 @@ export interface DisturbanceSpec {
   levels: ReadonlyArray<readonly [number, string]>;
 }
 
-/**
- * Standards every test type and checklist clause applies under. The second entry is
- * a forward placeholder: it resolves to today's catalogue, so examinations can be
- * opened against it now, and when a real new OIML edition lands it is renamed (or
- * joined by the new identifier) here — one place — then `npm run seed` to publish.
- */
-const OIML_R76 = ['OIML R76-1:2006', 'OIML R76-1:20xx (future edition)'];
-
-/** Shorthand for rows that exist only under the future-edition placeholder. */
-const FUTURE_ONLY = ['OIML R76-1:20xx (future edition)'];
-
-/** Shorthand for rows the future edition drops (illustrative removal). */
-const LEGACY_ONLY = ['OIML R76-1:2006'];
+const OIML_R76 = ['OIML R76-1:2006'];
 
 export const TEST_TYPES: TestTypeDefinition[] = [
   {
@@ -331,10 +319,7 @@ export const TEST_TYPES: TestTypeDefinition[] = [
     code: 'WARMUP',
     displayName: 'Warm-up time',
     description: 'Indication drift during the warm-up period after power-on.',
-    // Illustrative removal: the future edition folds warm-up into the generic
-    // stabilisation clause, so this row stays 2006-only. Demonstrates how a
-    // dropped test disappears from the future catalogue with zero code changes.
-    applicableStandards: LEGACY_ONLY,
+    applicableStandards: OIML_R76,
     ruleType: 'FIXED_VALUE',
     fixedToleranceExpression: '0.5*e',
     formKind: null,
@@ -386,40 +371,6 @@ export const TEST_TYPES: TestTypeDefinition[] = [
     category: 'Future work',
     implemented: false,
     sortOrder: 270,
-  },
-  {
-    // Illustrative future-edition additions: new tests arrive as data rows.
-    // Surge immunity is a genuine R76 disturbance test (clause 8.3.3) with no
-    // entry form yet; software identification stands in for the kind of clause
-    // a revision adds. Both are declaration-only until forms exist.
-    code: 'SWID',
-    displayName: 'Software identification (illustrative)',
-    description:
-      'Software version or revision is identified and matches the examined release. ' +
-      'Recorded as a declaration in the report; nothing to measure.',
-    applicableStandards: FUTURE_ONLY,
-    ruleType: 'FIXED_VALUE',
-    fixedToleranceExpression: '0*e',
-    formKind: null,
-    reportSheetRef: 'Sheet 6.1',
-    category: 'Future edition',
-    implemented: false,
-    sortOrder: 280,
-  },
-  {
-    code: 'EMC_SURGE',
-    displayName: 'Surge immunity (illustrative)',
-    description:
-      'Withstand of line-line and line-earth surges per clause 8.3.3. ' +
-      'Recorded as a declaration in the report until a table form exists.',
-    applicableStandards: FUTURE_ONLY,
-    ruleType: 'FIXED_VALUE',
-    fixedToleranceExpression: '1.0*e',
-    formKind: null,
-    reportSheetRef: 'Sheet 6.2',
-    category: 'Future edition',
-    implemented: false,
-    sortOrder: 290,
   },
 ];
 
@@ -554,13 +505,5 @@ export const CHECKLIST_ITEMS: ChecklistItemDefinition[] = [
     category: 'Tare devices',
     applicableStandards: OIML_R76,
     sortOrder: 150,
-  },
-  {
-    clauseNo: '7.3.1',
-    description:
-      'Software version marking is present and matches the examined release (illustrative future-edition clause).',
-    category: 'Software identification',
-    applicableStandards: FUTURE_ONLY,
-    sortOrder: 160,
   },
 ];

@@ -3,9 +3,6 @@ import { Link, useParams } from "react-router-dom";
 import QRCode from "qrcode";
 import { api, ApiError, fileUrl, session } from "../lib/api";
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Field } from "../components/forms";
-import { EditForm } from "./Instruments";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import {
@@ -66,13 +63,6 @@ export function Project() {
   const [shareOpen, setShareOpen] = useState(false);
   const [qrError, setQrError] = useState<string | null>(null);
   const qrRef = useRef<HTMLCanvasElement | null>(null);
-  const [editingExam, setEditingExam] = useState(false);
-  const [examForm, setExamForm] = useState<Record<string, string>>({});
-  const [editingMfr, setEditingMfr] = useState(false);
-  const [mfrForm, setMfrForm] = useState<Record<string, string>>({});
-  const [editingModelId, setEditingModelId] = useState<number | null>(null);
-  const [editBusy, setEditBusy] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
 
   async function reload() {
     const [detail, summary, checklist] = await Promise.all([
@@ -193,85 +183,8 @@ export function Project() {
     a.click();
   }
 
-  function openExamEditor() {
-    const p = data?.detail?.project ?? {};
-    setExamForm({
-      task_no: p.task_no ?? "",
-      report_no: p.report_no ?? "",
-      danak_no: p.danak_no ?? "",
-      examination_start_date: String(p.examination_start_date ?? "").slice(0, 10),
-      examination_end_date: String(p.examination_end_date ?? "").slice(0, 10),
-    });
-    setEditError(null);
-    setEditingExam(true);
-  }
-
-  async function saveExam() {
-    if (!examForm.task_no.trim() || !examForm.report_no.trim()) {
-      setEditError("Task number and report number are required.");
-      return;
-    }
-    if (examForm.examination_start_date && examForm.examination_end_date &&
-        examForm.examination_start_date > examForm.examination_end_date) {
-      setEditError("Examination start date must be on or before examination end date.");
-      return;
-    }
-    setEditBusy(true);
-    setEditError(null);
-    try {
-      await api.patch(`/projects/${id}`, {
-        task_no: examForm.task_no.trim(),
-        report_no: examForm.report_no.trim(),
-        danak_no: examForm.danak_no.trim() === "" ? null : examForm.danak_no.trim(),
-        examination_start_date: examForm.examination_start_date || null,
-        examination_end_date: examForm.examination_end_date || null,
-      });
-      setEditingExam(false);
-      await reload();
-    } catch (err) {
-      setEditError(err instanceof ApiError ? err.message : "Could not save the examination.");
-    } finally {
-      setEditBusy(false);
-    }
-  }
-
-  function openMfrEditor() {
-    const m = data?.detail?.manufacturer ?? {};
-    setMfrForm({
-      name: m.name ?? "",
-      address: m.address ?? "",
-      contact_person: m.contact_person ?? "",
-      email: m.email ?? "",
-      phone: m.phone ?? "",
-    });
-    setEditError(null);
-    setEditingMfr(true);
-  }
-
-  async function saveMfr() {
-    if (!mfrForm.name.trim()) {
-      setEditError("Manufacturer name is required.");
-      return;
-    }
-    setEditBusy(true);
-    setEditError(null);
-    try {
-      const body: Record<string, unknown> = { name: mfrForm.name.trim() };
-      for (const key of ["address", "contact_person", "email", "phone"] as const) {
-        const v = (mfrForm[key] ?? "").trim();
-        body[key] = v === "" ? null : v;
-      }
-      await api.patch(`/projects/${id}/manufacturer`, body);
-      setEditingMfr(false);
-      await reload();
-    } catch (err) {
-      setEditError(err instanceof ApiError ? err.message : "Could not save the manufacturer.");
-    } finally {
-      setEditBusy(false);
-    }
-  }
-
-  async function generate() {    setGenerating(true);
+  async function generate() {
+    setGenerating(true);
     setNotice("Generating the report…");
     try {
       const res = (await api.post(`/projects/${id}/reports`, { format: genFormat })) as {
@@ -393,121 +306,41 @@ export function Project() {
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-3">
-              <CardTitle>Examination</CardTitle>
-              {!approved && !editingExam && (
-                <Button variant="outline" size="sm" className="ml-auto" onClick={openExamEditor}>
-                  Edit
-                </Button>
-              )}
-            </div>
+            <CardTitle>Examination</CardTitle>
           </CardHeader>
           <CardContent>
-            {editingExam ? (
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <Field label="Task number">
-                    <Input value={examForm.task_no ?? ""} onChange={(e) => setExamForm((f) => ({ ...f, task_no: e.target.value }))} />
-                  </Field>
-                  <Field label="Report number">
-                    <Input value={examForm.report_no ?? ""} onChange={(e) => setExamForm((f) => ({ ...f, report_no: e.target.value }))} />
-                  </Field>
-                </div>
-                <Field label="DANAK / notified body no.">
-                  <Input value={examForm.danak_no ?? ""} onChange={(e) => setExamForm((f) => ({ ...f, danak_no: e.target.value }))} />
-                </Field>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <Field label="Examination start">
-                    <Input type="date" value={examForm.examination_start_date ?? ""} onChange={(e) => setExamForm((f) => ({ ...f, examination_start_date: e.target.value }))} />
-                  </Field>
-                  <Field label="Examination end">
-                    <Input type="date" value={examForm.examination_end_date ?? ""} onChange={(e) => setExamForm((f) => ({ ...f, examination_end_date: e.target.value }))} />
-                  </Field>
-                </div>
-                {editError && <p className="text-sm text-reject">{editError}</p>}
-                <div className="flex gap-2">
-                  <Button size="sm" variant="accent" onClick={() => void saveExam()} disabled={editBusy}>
-                    {editBusy ? "Saving…" : "Save changes"}
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setEditingExam(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Kv
-                rows={[
-                  ["Task number", project.task_no],
-                  ["Report number", project.report_no],
-                  ["DANAK number", project.danak_no],
-                  ["Standard", project.standard_version],
-                  [
-                    "Examination period",
-                    [project.examination_start_date, project.examination_end_date]
-                      .filter(Boolean)
-                      .map((d: string) => String(d).slice(0, 10))
-                      .join(" to ") || "—",
-                  ],
-                  ["Status", STATUS_LABEL[project.status] ?? project.status],
-                ]}
-              />
-            )}
+            <Kv
+              rows={[
+                ["Task number", project.task_no],
+                ["Report number", project.report_no],
+                ["DANAK number", project.danak_no],
+                ["Standard", project.standard_version],
+                [
+                  "Examination period",
+                  [project.examination_start_date, project.examination_end_date]
+                    .filter(Boolean)
+                    .map((d: string) => String(d).slice(0, 10))
+                    .join(" to ") || "—",
+                ],
+                ["Status", STATUS_LABEL[project.status] ?? project.status],
+              ]}
+            />
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-3">
-              <CardTitle>Manufacturer</CardTitle>
-              {!approved && !editingMfr && (
-                <Button variant="outline" size="sm" className="ml-auto" onClick={openMfrEditor}>
-                  Edit
-                </Button>
-              )}
-            </div>
+            <CardTitle>Manufacturer</CardTitle>
           </CardHeader>
           <CardContent>
-            {editingMfr ? (
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <Field label="Name">
-                    <Input value={mfrForm.name ?? ""} onChange={(e) => setMfrForm((f) => ({ ...f, name: e.target.value }))} />
-                  </Field>
-                  <Field label="Contact person">
-                    <Input value={mfrForm.contact_person ?? ""} onChange={(e) => setMfrForm((f) => ({ ...f, contact_person: e.target.value }))} />
-                  </Field>
-                </div>
-                <Field label="Address">
-                  <Input value={mfrForm.address ?? ""} onChange={(e) => setMfrForm((f) => ({ ...f, address: e.target.value }))} />
-                </Field>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <Field label="Email">
-                    <Input value={mfrForm.email ?? ""} onChange={(e) => setMfrForm((f) => ({ ...f, email: e.target.value }))} />
-                  </Field>
-                  <Field label="Phone">
-                    <Input value={mfrForm.phone ?? ""} onChange={(e) => setMfrForm((f) => ({ ...f, phone: e.target.value }))} />
-                  </Field>
-                </div>
-                {editError && <p className="text-sm text-reject">{editError}</p>}
-                <div className="flex gap-2">
-                  <Button size="sm" variant="accent" onClick={() => void saveMfr()} disabled={editBusy}>
-                    {editBusy ? "Saving…" : "Save changes"}
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setEditingMfr(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Kv
-                rows={[
-                  ["Name", manufacturer?.name],
-                  ["Address", manufacturer?.address],
-                  ["Contact", manufacturer?.contact_person],
-                  ["Email", manufacturer?.email],
-                  ["Phone", manufacturer?.phone],
-                ]}
-              />
-            )}
+            <Kv
+              rows={[
+                ["Name", manufacturer?.name],
+                ["Address", manufacturer?.address],
+                ["Contact", manufacturer?.contact_person],
+                ["Email", manufacturer?.email],
+                ["Phone", manufacturer?.phone],
+              ]}
+            />
           </CardContent>
         </Card>
       </div>
@@ -548,38 +381,13 @@ export function Project() {
                 <CardTitle>
                   {model.familyName} · {model.model_name}
                 </CardTitle>
-                <div className="ml-auto flex gap-2">
-                  {!approved && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        setEditingModelId((mid) => (mid === model.id ? null : model.id))
-                      }
-                    >
-                      {editingModelId === model.id ? "Close" : "Edit spec"}
-                    </Button>
-                  )}
-                  <Link to={`/models/${model.id}`}>
-                    <Button variant="outline" size="sm">
-                      Open test sheets
-                    </Button>
-                  </Link>
-                </div>
+                <Link to={`/models/${model.id}`} className="ml-auto">
+                  <Button variant="outline" size="sm">
+                    Open test sheets
+                  </Button>
+                </Link>
               </div>
             </CardHeader>
-            {editingModelId === model.id && (
-              <CardContent className="border-b">
-                <EditForm
-                  instrument={model}
-                  onDone={() => {
-                    setEditingModelId(null);
-                    void reload();
-                  }}
-                  onCancel={() => setEditingModelId(null)}
-                />
-              </CardContent>
-            )}
             <CardContent>
               <p className="mb-2 text-xs text-muted-foreground">
                 Max {model.max_capacity} g · e {model.e_value} g · n {model.n_intervals} · Class{" "}

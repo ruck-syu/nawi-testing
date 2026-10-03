@@ -10,11 +10,8 @@ import { Model } from "./pages/Model";
 import { Reports } from "./pages/Reports";
 import { Profile } from "./pages/Profile";
 import { TestHistory } from "./pages/TestHistory";
-import { Instruments } from "./pages/Instruments";
-import { Manage } from "./pages/Manage";
-import { Standards } from "./pages/Standards";import { Track } from "./pages/Track";
+import { Track } from "./pages/Track";
 import { MobileUpload } from "./pages/MobileUpload";
-import { Verify } from "./pages/Verify";
 import { session, onUnauthorized } from "./lib/api";
 import { useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
@@ -60,8 +57,6 @@ export function App() {
         <Route path="/track/:token" element={<Track />} />
         {/* Public mobile photo-upload page: no session, no app shell. The token is the credential. */}
         <Route path="/m/:token" element={<MobileUpload />} />
-        {/* Public report verification page: no session, no app shell. */}
-        <Route path="/verify/:token" element={<Verify />} />
         <Route
           path="/projects"
           element={
@@ -88,9 +83,6 @@ export function App() {
           ["/models/:modelId", "Instrument overview", Model],
           ["/models/:modelId/tests/:code", "Test sheet", Model],
           ["/reports", "Report repository", Reports],
-          ["/instruments", "Instrument registry", Instruments],
-          ["/manage", "Lab management", Manage],
-          ["/standards", "Standard editions", Standards],
           ["/profile", "Profile", Profile],
           ["/test-history", "Test history", TestHistory],
         ].map(([path, title, Component]) => (

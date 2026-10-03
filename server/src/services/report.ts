@@ -14,8 +14,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
-import QRCode from 'qrcode';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { all, get, run } from '../db/index.ts';
@@ -92,7 +90,7 @@ function slug(value: string): string {
  */
 export async function generateReport(
   projectId: number,
-  options: { format?: 'html' | 'pdf' | 'docx' | 'xlsx'; generatedBy?: string; baseUrl?: string } = {},
+  options: { format?: 'html' | 'pdf' | 'docx' | 'xlsx'; generatedBy?: string } = {},
 ): Promise<{ report: GeneratedReport; pdfFallback: boolean }> {
   const format = options.format ?? 'html';
   // The model is built once and shared: persistence reads project/rollup from it and
@@ -100,50 +98,6 @@ export async function generateReport(
   const model = await buildReportModel(projectId, { generatedBy: options.generatedBy });
   const project = model.project;
   const rollup = model.rollup;
-
-  let verificationToken: string | null = null;
-  let integrityHash: string | null = null;
-
-  if (project.status === 'approved') {
-    const token = crypto.randomBytes(24).toString('base64url');
-    const projectWithApproval = project as typeof project & {
-      approved_by?: number | null;
-      approved_at?: string | null;
-    };
-    const payload = {
-      reportNo: project.report_no,
-      taskNo: project.task_no,
-      overallVerdict: rollup.verdict,
-      testCount: rollup.testCount,
-      passCount: rollup.passCount,
-      failCount: rollup.failCount,
-      approvedBy: projectWithApproval.approved_by ?? null,
-      approvedAt: projectWithApproval.approved_at ?? null,
-      generatedAt: model.generatedAt,
-    };
-    const integrityHashValue = crypto
-      .createHash('sha256')
-      .update(JSON.stringify(payload))
-      .digest('hex');
-    // The QR must point back at wherever this server is actually reached —
-    // a hardcoded origin would bake localhost into reports generated in
-    // production. Callers pass the request's own origin; SITE_URL is the
-    // fallback for script-driven generation with no request in scope.
-    const verifyUrl = `${options.baseUrl ?? config.siteUrl}/#/verify/${token}`;
-    const [qrDataUrl, qrBuffer] = await Promise.all([
-      QRCode.toDataURL(verifyUrl, { width: 200, margin: 1 }),
-      QRCode.toBuffer(verifyUrl, { width: 200, margin: 1 }),
-    ]);
-    model.verification = {
-      token,
-      qrDataUrl,
-      qrBuffer,
-      integrityHash: integrityHashValue,
-      verifyUrl,
-    };
-    verificationToken = token;
-    integrityHash = integrityHashValue;
-  }
 
   fs.mkdirSync(config.reportsDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -196,9 +150,8 @@ export async function generateReport(
   const { lastInsertRowid } = await run(
     `INSERT INTO generated_report
        (project_id, report_no, format, file_path, generated_by,
-        overall_verdict, test_count, pass_count, fail_count, print_signature,
-        verification_token, integrity_hash)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        overall_verdict, test_count, pass_count, fail_count, print_signature)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       projectId,
       project.report_no,
@@ -210,8 +163,6 @@ export async function generateReport(
       rollup.passCount,
       rollup.failCount,
       Boolean(model.signature),
-      verificationToken,
-      integrityHash,
     ],
   );
 

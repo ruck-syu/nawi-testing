@@ -30,7 +30,6 @@ interface UserRow {
   email: string;
   role: string;
   signature_path: string | null;
-  signature_image: string | null;
   is_active: boolean;
 }
 
@@ -83,12 +82,9 @@ export function registerUserRoutes(router: Router): void {
     fs.mkdirSync(config.uploadsDir, { recursive: true });
     const name = `sig-${crypto.randomUUID()}.png`;
     fs.writeFileSync(path.join(config.uploadsDir, name), file.data);
-    // Database copy (source of truth): the uploads directory is ephemeral on
-    // hosted installs, so the image must survive without the file.
-    const dataUrl = `data:image/png;base64,${file.data.toString('base64')}`;
 
     const previous = await requireUser(ctx.user!.sub);
-    await run('UPDATE "user" SET signature_path = ?, signature_image = ? WHERE id = ?', [name, dataUrl, ctx.user!.sub]);
+    await run('UPDATE "user" SET signature_path = ? WHERE id = ?', [name, ctx.user!.sub]);
     if (previous.signature_path) {
       try {
         // basename: the stored value should always be a bare file name, but a
@@ -101,30 +97,6 @@ export function registerUserRoutes(router: Router): void {
     return { user: publicUser(await requireUser(ctx.user!.sub)) };
   }, []);
 
-  /**
-   * The signature image itself, from the database copy (with a disk fallback
-   * that backfills the database on first use). The profile page displays this,
-   * so a wiped uploads directory never reads as a removed signature.
-   */
-  router.get('/api/users/me/signature', async (ctx) => {
-    const me = await requireUser(ctx.user!.sub);
-    if (me.signature_image) return { image: me.signature_image };
-    if (me.signature_path) {
-      const absolute = path.join(config.uploadsDir, path.basename(me.signature_path));
-      try {
-        const data = fs.readFileSync(absolute);
-        if (data.length > 0 && data.length <= 2 * 1024 * 1024) {
-          const dataUrl = `data:image/png;base64,${data.toString('base64')}`;
-          await run('UPDATE "user" SET signature_image = ? WHERE id = ?', [dataUrl, me.id]);
-          return { image: dataUrl };
-        }
-      } catch {
-        /* fall through to null */
-      }
-    }
-    return { image: null };
-  }, []);
-
   router.delete('/api/users/me/signature', async (ctx) => {
     const me = await requireUser(ctx.user!.sub);
     if (me.signature_path) {
@@ -133,9 +105,7 @@ export function registerUserRoutes(router: Router): void {
       } catch {
         /* ignored: the row is cleared either way */
       }
-      await run('UPDATE "user" SET signature_path = NULL, signature_image = NULL WHERE id = ?', [ctx.user!.sub]);
-    } else if (me.signature_image) {
-      await run('UPDATE "user" SET signature_image = NULL WHERE id = ?', [ctx.user!.sub]);
+      await run('UPDATE "user" SET signature_path = NULL WHERE id = ?', [ctx.user!.sub]);
     }
     return { user: publicUser(await requireUser(ctx.user!.sub)) };
   }, []);
