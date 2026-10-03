@@ -272,6 +272,30 @@ export function registerProjectRoutes(router: Router): void {
     [],
   );
 
+  /** Add a manufacturer to the directory (examinations find-or-create by name). */
+  router.post(
+    '/api/manufacturers',
+    async (ctx) => {
+      const name = strOrNull(ctx.body.name);
+      if (!name) throw badRequest('Manufacturer name must not be empty');
+      if (await get('SELECT id FROM manufacturer WHERE lower(name) = lower(?)', [name])) {
+        throw badRequest(`Manufacturer "${name}" already exists`);
+      }
+      const email = strOrNull(ctx.body.email);
+      if (email !== null && !email.includes('@')) {
+        throw badRequest('Manufacturer email must be a valid email address');
+      }
+      const { lastInsertRowid } = await run(
+        'INSERT INTO manufacturer (name, address, contact_person, email, phone) VALUES (?, ?, ?, ?, ?)',
+        [name, strOrNull(ctx.body.address), strOrNull(ctx.body.contact_person), email, strOrNull(ctx.body.phone)],
+      );
+      return {
+        manufacturer: await get('SELECT id, name, address, contact_person, email, phone FROM manufacturer WHERE id = ?', [lastInsertRowid]),
+      };
+    },
+    [],
+  );
+
   /** Update manufacturer details (address, contact, email, phone). */
   router.patch(
     '/api/manufacturers/:id',
@@ -556,8 +580,47 @@ export function registerProjectRoutes(router: Router): void {
     [],
   );
 
-  router.patch('/api/projects/:id/review', async (ctx) => {
-    const projectId = Number(ctx.params.id);
+  /**
+   * Edit the manufacturer on an examination. The manufacturer row is shared
+   * (find-or-create at creation), so this updates the shared record — the
+   * examination itself is untouched.
+   */
+  router.patch(
+    '/api/projects/:id/manufacturer',
+    async (ctx) => {
+      const projectId = Number(ctx.params.id);
+      await requireEditableProject(projectId, ctx);
+      const project = await requireProject(projectId);
+      const updates: string[] = [];
+      const values: unknown[] = [];
+      if ('name' in ctx.body) {
+        const name = strOrNull(ctx.body.name);
+        if (!name) throw badRequest('Manufacturer name cannot be empty');
+        updates.push('name = ?');
+        values.push(name);
+      }
+      for (const field of ['address', 'contact_person', 'email', 'phone'] as const) {
+        if (field in ctx.body) {
+          updates.push(`${field} = ?`);
+          values.push(strOrNull(ctx.body[field]));
+        }
+      }
+      if (updates.length === 0) throw badRequest('No updatable fields supplied');
+      await run(`UPDATE manufacturer SET ${updates.join(', ')} WHERE id = ?`, [
+        ...values,
+        project.manufacturer_id,
+      ]);
+      return {
+        manufacturer: await get(
+          'SELECT id, name, address, contact_person, email, phone FROM manufacturer WHERE id = ?',
+          [project.manufacturer_id],
+        ),
+      };
+    },
+    [],
+  );
+
+  router.patch('/api/projects/:id/review', async (ctx) => {    const projectId = Number(ctx.params.id);
     const action = oneOf(ctx.body.action, ['mark_reviewed', 'approve'] as const, 'action');
     const project = await requireProjectStage(projectId);
 
@@ -826,8 +889,7 @@ export function registerProjectRoutes(router: Router): void {
     [],
   );
 
-  /** Suggested weight set for a given Max/Min/e, used by the wizard before the model exists. */
-  router.post(
+  /** Suggested weight set for a given Max/Min/e, used by the wizard before the model exists. */  router.post(
     '/api/reference-weights/suggest',
     async (ctx) => {
       const max = num(ctx.body.max_capacity, 'max_capacity');
