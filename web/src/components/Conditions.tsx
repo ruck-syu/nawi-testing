@@ -1,7 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Input } from "./ui/input";
 import { Field, Select } from "./forms";
 import { InvalidPopup } from "./InvalidPopup";
+import { api } from "../lib/api";
+import { Button } from "./ui/button";
 
 /**
  * Conditions header — environmental and run-level facts for the whole test.
@@ -69,6 +71,23 @@ export function Conditions({
                   type={spec.type}
                   defaultValue={initial}
                   onChange={(e) => commit(e.target.value)}
+                />
+              </Field>
+            );
+          }
+          if (spec.type === "text") {
+            return (
+              <Field key={name} label={spec.label} hint={spec.hint}>
+                <Input
+                  type="text"
+                  defaultValue={initial}
+                  placeholder={spec.placeholder}
+                  onBlur={(e) => {
+                    if (!unchanged(e.target.value)) commit(e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                  }}
                 />
               </Field>
             );
@@ -183,5 +202,101 @@ export function ConditionSelect({
       }}
       options={options}
     />
+  );
+}
+
+/**
+ * Copy-conditions bar for test sheets.
+ *
+ * New sheets already open with conditions carried forward from the instrument's
+ * last-touched sheet (see POST /models/:id/tests/:code). This covers existing
+ * sheets: pick a sibling sheet and copy its session header (date, time,
+ * operator, lab climate) onto this run. Test-specific fields like test load
+ * are never copied. Rendered by Model.tsx above the form so none of the
+ * per-test forms need to change.
+ */
+export function CopyConditions({
+  modelId,
+  runId,
+  save,
+  onCopied,
+}: {
+  modelId: number;
+  runId: number;
+  save: (rows: undefined, extra: Record<string, unknown>) => Promise<unknown>;
+  onCopied: () => void;
+}) {
+  const [options, setOptions] = useState<any[] | null>(null);
+  const [fromId, setFromId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    api
+      .get<{ testRuns: any[] }>(`/test-runs?modelId=${modelId}&limit=50`)
+      .then((data) => {
+        if (!live) return;
+        const donors = (data.testRuns ?? []).filter(
+          (r: any) =>
+            r.id !== runId &&
+            (r.datePerformed || r.operatorName || r.temperatureC != null || r.humidityPct != null)
+        );
+        setOptions(donors);
+        if (donors.length > 0) setFromId(String(donors[0].id));
+      })
+      .catch(() => {
+        if (live) setOptions([]);
+      });
+    return () => {
+      live = false;
+    };
+  }, [modelId, runId]);
+
+  if (!options || options.length === 0) return null;
+
+  const copy = async () => {
+    if (!fromId || busy) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      await api.post(`/test-runs/${runId}/copy-conditions`, { from_run_id: Number(fromId) });
+      // Refresh the sheet through the normal save path so verdicts and parent
+      // state update; onCopied remounts the form so the copied values show.
+      await save(undefined, {});
+      onCopied();
+      const src = options.find((o) => String(o.id) === fromId);
+      setNote(
+        `Conditions copied from ${src?.displayName ?? "sheet"}${src?.datePerformed ? ` (${src.datePerformed})` : ""}.`
+      );
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : "Copy failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card px-4 py-2.5 text-sm">
+      <span className="text-muted-foreground">Conditions from</span>
+      <select
+        aria-label="Copy conditions from another sheet"
+        value={fromId}
+        onChange={(e) => setFromId(e.target.value)}
+        className="h-8 rounded-md border border-border bg-input px-2 text-sm shadow-xs"
+      >
+        {options.map((o: any) => (
+          <option key={o.id} value={String(o.id)}>
+            {o.displayName || o.testTypeCode}
+            {o.datePerformed ? ` · ${o.datePerformed}` : ""}
+            {o.operatorName ? ` · ${o.operatorName}` : ""}
+          </option>
+        ))}
+      </select>
+      <Button size="sm" variant="outline" onClick={() => void copy()} disabled={busy || !fromId}>
+        {busy ? "Copying…" : "Copy"}
+      </Button>
+      {note && <span className="text-xs text-muted-foreground">{note}</span>}
+    </div>
   );
 }

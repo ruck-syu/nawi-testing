@@ -14,8 +14,8 @@ import {
 } from "../components/ui/table";
 import { cn } from "../lib/utils";
 import { Attachments } from "../components/Attachments";
-import { WeighingForm } from "../components/tests/Weighing";
-import { RepeatabilityForm } from "../components/tests/Repeatability";
+import { CopyConditions } from "../components/Conditions";
+import { WeighingForm } from "../components/tests/Weighing";import { RepeatabilityForm } from "../components/tests/Repeatability";
 import { EccentricityForm } from "../components/tests/Eccentricity";
 import { EsdForm } from "../components/tests/Esd";
 import { RadiatedForm } from "../components/tests/Radiated";
@@ -340,7 +340,13 @@ export function Model() {
         {!computed ? (
           <p className="text-sm text-muted-foreground">Loading {entry?.displayName ?? "test"}…</p>
         ) : Form ? (
-          <div key={`${computed.run.id}:${revision}`}>
+          <div key={`${computed.run.id}:${revision}`} className="flex flex-col gap-4">
+            <CopyConditions
+              modelId={Number(modelId)}
+              runId={computed.run.id}
+              save={save}
+              onCopied={() => void onStructuralChange()}
+            />
             <Form
               computed={computed}
               save={save}
